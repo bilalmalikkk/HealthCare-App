@@ -24,6 +24,36 @@ function getApiBaseUrl(): string {
 
 const API_BASE_URL = getApiBaseUrl();
 
+type QueryParams = Record<string, string | number | boolean | null | undefined>;
+
+function buildApiUrl(path: string, query?: QueryParams): string {
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  let queryString = '';
+
+  if (query) {
+    const params = new URLSearchParams();
+    Object.entries(query).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        params.set(key, String(value));
+      }
+    });
+    queryString = params.toString();
+  }
+
+  if (API_BASE_URL.startsWith('http://') || API_BASE_URL.startsWith('https://')) {
+    const base = API_BASE_URL.endsWith('/') ? API_BASE_URL : `${API_BASE_URL}/`;
+    const url = new URL(normalizedPath.replace(/^\//, ''), base);
+    if (queryString) {
+      url.search = queryString;
+    }
+    return url.toString();
+  }
+
+  const base = API_BASE_URL.endsWith('/') ? API_BASE_URL.slice(0, -1) : API_BASE_URL;
+  const url = `${base}${normalizedPath}`;
+  return queryString ? `${url}?${queryString}` : url;
+}
+
 // Log the API base URL in development for debugging
 if (import.meta.env.DEV) {
   console.log('API Base URL:', API_BASE_URL);
@@ -288,11 +318,9 @@ export async function fetchVitals(patientId: string): Promise<VitalsData | null>
   try {
     // Fetch average vital readings from sensor readings endpoint
     // Default: last 5 minutes of data
-    const url = new URL(`${API_BASE_URL}/api/v2/patients/${patientId}/vital/average`);
-    url.searchParams.append('unit', 'minutes');
-    url.searchParams.append('time', '5');
+    const url = buildApiUrl(`/api/v2/patients/${patientId}/vital/average`, { unit: 'minutes', time: 5 });
     
-    const response = await fetch(url.toString(), {
+    const response = await fetch(url, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -431,13 +459,10 @@ export interface PatientData {
  * @param type - Optional filter: 'all', 'active', or 'inactive'
  */
 export async function fetchAllPatients(type: 'all' | 'active' | 'inactive' = 'active'): Promise<PatientData[]> {
-  const url = new URL(`${API_BASE_URL}/api/v2/patients`);
-  if (type && type !== 'all') {
-    url.searchParams.append('type', type);
-  }
+  const url = buildApiUrl('/api/v2/patients', type && type !== 'all' ? { type } : undefined);
   
   try {
-    const response = await fetch(url.toString(), {
+    const response = await fetch(url, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
