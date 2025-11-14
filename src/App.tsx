@@ -12,7 +12,7 @@ import PhoneFrame from './components/PhoneFrame';
 
 interface Alarm {
   id: number;
-  patientId: number;
+  patientId: string;
   patientName: string;
   patientAvatar: string;
   type: string;
@@ -30,7 +30,7 @@ export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [currentUser, setCurrentUser] = useState('');
   const [currentPage, setCurrentPage] = useState('landing');
-  const [selectedPatientId, setSelectedPatientId] = useState<number | null>(null);
+  const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
   
   // Journal entries state
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
@@ -39,7 +39,7 @@ export default function App() {
   const [alarms, setAlarms] = useState<Alarm[]>([
     {
       id: 1,
-      patientId: 1,
+      patientId: '33cfc5cf-fcaa-406a-9acc-7553a659b2f0',
       patientName: "Jenny Wilson",
       patientAvatar: "https://images.unsplash.com/photo-1594751543129-6701ad444259?w=100&h=100&fit=crop",
       type: "HR",
@@ -54,7 +54,7 @@ export default function App() {
     },
     {
       id: 2,
-      patientId: 2,
+      patientId: '496d1ca1-dbe7-425d-9b73-0e230f8f37b5',
       patientName: "Jacob Jones",
       patientAvatar: "https://images.unsplash.com/photo-1566616213894-2d4e1baee5d8?w=100&h=100&fit=crop",
       type: "Fall",
@@ -69,7 +69,7 @@ export default function App() {
     },
     {
       id: 3,
-      patientId: 3,
+      patientId: '4dd1ccdf-adff-4e67-9862-6110b4737d74',
       patientName: "Darrell Steward",
       patientAvatar: "https://images.unsplash.com/photo-1595429035839-c99c298ffdde?w=100&h=100&fit=crop",
       type: "O2",
@@ -89,7 +89,7 @@ export default function App() {
     setCurrentUser(username);
   };
 
-  const navigate = (page: string, patientId?: number) => {
+  const navigate = (page: string, patientId?: string) => {
     setCurrentPage(page);
     if (patientId) {
       setSelectedPatientId(patientId);

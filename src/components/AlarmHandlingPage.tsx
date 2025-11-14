@@ -8,7 +8,7 @@ import ResetAlarmDialog from './ResetAlarmDialog';
 
 interface Alarm {
   id: number;
-  patientId: number;
+  patientId: string;
   patientName: string;
   patientAvatar: string;
   type: string;
@@ -23,7 +23,7 @@ interface Alarm {
 }
 
 interface AlarmHandlingPageProps {
-  navigate: (page: string, patientId?: number) => void;
+  navigate: (page: string, patientId?: string) => void;
   currentUser: string;
   alarms: Alarm[];
   onMarkInProgress: (alarmId: number) => void;

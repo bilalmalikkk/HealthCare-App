@@ -8,8 +8,8 @@ import irCameraImage from 'figma:asset/2e26288dd1d5130f2fcf37a88e7c9630fb970e5a.
 import { useState, useEffect } from 'react';
 
 interface DigitalCarePageProps {
-  navigate: (page: string, patientId?: number) => void;
-  patientId: number;
+  navigate: (page: string, patientId?: string) => void;
+  patientId: string;
   alarmCount: number;
 }
 

@@ -11,7 +11,7 @@ import { HomeIcon, ScheduleIcon, ClientsIcon, TasksIcon, JournalIcon } from './B
 export interface JournalEntry {
   id: number;
   alarmId: number;
-  patientId: number;
+  patientId: string;
   patientName: string;
   patientAvatar: string;
   alarmType: string;
