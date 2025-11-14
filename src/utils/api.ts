@@ -7,12 +7,18 @@ function getApiBaseUrl(): string {
   const envUrl = import.meta.env.VITE_API_BASE_URL;
   
   if (envUrl) {
-    if (envUrl.startsWith('http://') || envUrl.startsWith('https://')) {
+    if (envUrl.startsWith('http://') || envUrl.startsWith('https://') || envUrl.startsWith('/')) {
       return envUrl;
     }
     return `http://${envUrl}`;
   }
   
+  // In production (Vercel), use relative `/api` which is proxied to the backend
+  if (import.meta.env.PROD) {
+    return '/api';
+  }
+  
+  // Default for local development
   return 'http://localhost:8000';
 }
 

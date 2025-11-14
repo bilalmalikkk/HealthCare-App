@@ -6,6 +6,10 @@
   "framework": "vite",
   "rewrites": [
     {
+      "source": "/api/(.*)",
+      "destination": "http://nordicmedtek3.vps.itpays.cloud:5001/api/$1"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
