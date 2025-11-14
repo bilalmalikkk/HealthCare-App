@@ -125,7 +125,7 @@ export interface ApiResponse<T> {
 export async function fetchUser(userId: string): Promise<UserData | null> {
   // Ensure UUID is properly formatted (trim whitespace)
   const cleanUserId = userId.trim();
-  const url = `${API_BASE_URL}/api/v1/user/${cleanUserId}`;
+  const url = buildApiUrl(`/v1/user/${cleanUserId}`);
   
   if (import.meta.env.DEV) {
     console.log('Fetching user from:', url);
@@ -318,7 +318,7 @@ export async function fetchVitals(patientId: string): Promise<VitalsData | null>
   try {
     // Fetch average vital readings from sensor readings endpoint
     // Default: last 5 minutes of data
-    const url = buildApiUrl(`/api/v2/patients/${patientId}/vital/average`, { unit: 'minutes', time: 5 });
+    const url = buildApiUrl(`/v2/patients/${patientId}/vital/average`, { unit: 'minutes', time: 5 });
     
     const response = await fetch(url, {
       method: 'GET',
@@ -459,7 +459,7 @@ export interface PatientData {
  * @param type - Optional filter: 'all', 'active', or 'inactive'
  */
 export async function fetchAllPatients(type: 'all' | 'active' | 'inactive' = 'active'): Promise<PatientData[]> {
-  const url = buildApiUrl('/api/v2/patients', type && type !== 'all' ? { type } : undefined);
+  const url = buildApiUrl('/v2/patients', type && type !== 'all' ? { type } : undefined);
   
   try {
     const response = await fetch(url, {
@@ -498,7 +498,7 @@ export async function fetchAllPatients(type: 'all' | 'active' | 'inactive' = 'ac
  * Uses /api/v2/patients/:id endpoint like the web project
  */
 export async function fetchPatientById(patientId: string): Promise<PatientData | null> {
-  const url = `${API_BASE_URL}/api/v2/patients/${patientId}`;
+  const url = buildApiUrl(`/v2/patients/${patientId}`);
   
   try {
     const response = await fetch(url, {
