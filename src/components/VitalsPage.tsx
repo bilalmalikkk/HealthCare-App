@@ -63,6 +63,8 @@ export default function VitalsPage({ navigate, patientId, alarmCount }: VitalsPa
       setError(null);
       try {
         // Fetch both patient data and vitals in parallel
+        // Vitals: Gets patient's sensors, then fetches latest actual reading from readings_vital table
+        // Returns: { hr, rr, fft, sv, hrv, bed_status, b2b, b2b1, b2b2, sig_strength, ts } (actual values, not averages)
         const [patientData, vitals] = await Promise.all([
           fetchPatientById(patientId),
           fetchVitals(patientId)
@@ -71,6 +73,13 @@ export default function VitalsPage({ navigate, patientId, alarmCount }: VitalsPa
         if (patientData) {
           setPatient(patientData);
         }
+        
+        // Log the vitals data received from backend
+        if (import.meta.env.DEV) {
+          console.log('Vitals data received:', vitals);
+          console.log('Patient ID:', patientId);
+        }
+        
         setVitalsData(vitals);
       } catch (err) {
         console.error('Failed to load data:', err);
@@ -81,6 +90,23 @@ export default function VitalsPage({ navigate, patientId, alarmCount }: VitalsPa
     };
 
     loadData();
+    
+    // Set up polling to refresh vitals every 3 seconds
+    // This fetches the latest actual reading from the readings_vital table
+    const interval = setInterval(() => {
+      fetchVitals(patientId)
+        .then((vitals) => {
+          if (import.meta.env.DEV) {
+            console.log('Vitals updated (latest actual reading):', vitals);
+          }
+          setVitalsData(vitals);
+        })
+        .catch((err) => {
+          console.error('Failed to refresh vitals:', err);
+        });
+    }, 3000); // 3 seconds
+    
+    return () => clearInterval(interval);
   }, [patientId]);
 
   // Format vitals data for display
@@ -94,42 +120,44 @@ export default function VitalsPage({ navigate, patientId, alarmCount }: VitalsPa
     return `${systolic}/${diastolic} mm Hg`;
   };
 
+  // Using exact database field names: hr, rr, fft, etc.
+  // These are the actual values from the readings_vital table (not averages)
   const vitals = [
     {
       icon: <Thermometer className="w-5 h-5" />,
-      label: "Temperature",
-      value: formatVitalValue(vitalsData?.temperature || null, '°F'),
-      date: formatDate(vitalsData?.recordedAt || null)
+      label: "Temperature (fft)",
+      value: formatVitalValue(vitalsData?.fft || null, '°F'),
+      date: formatDate(vitalsData?.ts || null)
     },
     {
       icon: <Heart className="w-5 h-5" />,
-      label: "Heart Rate",
-      value: formatVitalValue(vitalsData?.heartRate || null, 'BPM'),
-      date: formatDate(vitalsData?.recordedAt || null)
+      label: "Heart Rate (hr)",
+      value: formatVitalValue(vitalsData?.hr || null, 'BPM'),
+      date: formatDate(vitalsData?.ts || null)
     },
     {
       icon: <Activity className="w-5 h-5" />,
-      label: "Respiratory Rate",
-      value: formatVitalValue(vitalsData?.respiratoryRate || null, 'BPM'),
-      date: formatDate(vitalsData?.recordedAt || null)
+      label: "Respiratory Rate (rr)",
+      value: formatVitalValue(vitalsData?.rr || null, 'BPM'),
+      date: formatDate(vitalsData?.ts || null)
     },
     {
       icon: <Droplets className="w-5 h-5" />,
-      label: "Blood Pressure",
-      value: formatBloodPressure(vitalsData?.bloodPressureSystolic || null, vitalsData?.bloodPressureDiastolic || null),
-      date: formatDate(vitalsData?.recordedAt || null)
+      label: "Stroke Volume (sv)",
+      value: formatVitalValue(vitalsData?.sv || null, 'mL'),
+      date: formatDate(vitalsData?.ts || null)
     },
     {
       icon: <Wind className="w-5 h-5" />,
-      label: "Blood Oxygen",
-      value: formatVitalValue(vitalsData?.bloodOxygen || null, '%'),
-      date: formatDate(vitalsData?.recordedAt || null)
+      label: "Heart Rate Variability (hrv)",
+      value: formatVitalValue(vitalsData?.hrv || null, 'ms'),
+      date: formatDate(vitalsData?.ts || null)
     },
     {
       icon: <Weight className="w-5 h-5" />,
-      label: "Weight",
-      value: formatVitalValue(vitalsData?.weight || null, 'Kg'),
-      date: formatDate(vitalsData?.recordedAt || null)
+      label: "Signal Strength (sig_strength)",
+      value: formatVitalValue(vitalsData?.sig_strength || null, '%'),
+      date: formatDate(vitalsData?.ts || null)
     }
   ];
 

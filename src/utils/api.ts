@@ -41,14 +41,25 @@ function buildApiUrl(path: string, query?: QueryParams): string {
   }
 
   if (API_BASE_URL.startsWith('http://') || API_BASE_URL.startsWith('https://')) {
-    const base = API_BASE_URL.endsWith('/') ? API_BASE_URL : `${API_BASE_URL}/`;
-    const url = new URL(normalizedPath.replace(/^\//, ''), base);
+    // For absolute URLs, ensure /api prefix is included
+    // Base URL might be: http://nordicmedtek3.vps.itpays.cloud:5001
+    // Path might be: /v2/patients
+    // Result should be: http://nordicmedtek3.vps.itpays.cloud:5001/api/v2/patients
+    let base = API_BASE_URL.endsWith('/') ? API_BASE_URL.slice(0, -1) : API_BASE_URL;
+    
+    // Add /api if base URL doesn't already end with /api and path doesn't start with /api
+    if (!base.endsWith('/api') && !normalizedPath.startsWith('/api')) {
+      base = `${base}/api`;
+    }
+    
+    const url = new URL(normalizedPath.replace(/^\//, ''), `${base}/`);
     if (queryString) {
       url.search = queryString;
     }
     return url.toString();
   }
 
+  // For relative URLs (like /api for Vercel), just concatenate
   const base = API_BASE_URL.endsWith('/') ? API_BASE_URL.slice(0, -1) : API_BASE_URL;
   const url = `${base}${normalizedPath}`;
   return queryString ? `${url}?${queryString}` : url;
@@ -101,15 +112,23 @@ export interface UserListItem {
   phone?: string;
 }
 
+// VitalsData interface using exact database field names from readings_vital table
+// Database columns: hr, rr, fft, sv, hrv, bed_status, b2b, b2b1, b2b2, sig_strength, ts
+// These are the actual values from the latest reading, not averages
 export interface VitalsData {
-  heartRate: number | null;
-  respiratoryRate: number | null;
-  temperature: number | null;
-  bloodPressureSystolic: number | null;
-  bloodPressureDiastolic: number | null;
-  bloodOxygen: number | null;
-  weight: number | null;
-  recordedAt: string | null;
+  // Using exact database field names (from readings_vital table)
+  hr: number | null;                  // Heart Rate (BPM) - actual value
+  rr: number | null;                  // Respiratory Rate (breaths/min) - actual value
+  fft: number | null;                 // Temperature (°F) - actual value
+  sv: number | null;                  // Stroke Volume - actual value
+  hrv: number | null;                 // Heart Rate Variability - actual value
+  bed_status: number | null;          // Bed Status - actual value
+  b2b: number | null;                // B2B metric - actual value
+  b2b1: number | null;                // B2B1 metric - actual value
+  b2b2: number | null;                // B2B2 metric - actual value
+  sig_strength: number | null;        // Signal Strength - actual value
+  ts: string | null;                  // Timestamp of the reading
+  sensor_id?: string | null;          // Sensor ID that provided this reading
 }
 
 export interface ApiResponse<T> {
@@ -309,18 +328,23 @@ export function extractVitalsFromStats(stats: Record<string, any> | null | undef
 }
 
 /**
- * Fetch vitals for a specific patient
- * Uses /api/v2/patients/:id/vital/average endpoint to get average vital readings
+ * Fetch the latest actual vital reading for a specific patient
+ * Gets patient's sensors first, then fetches the latest reading from the first sensor
+ * Uses actual database field names: hr, rr, fft, sv, hrv, bed_status, b2b, b2b1, b2b2, sig_strength, ts
  * @param patientId - UUID of the patient
- * @returns Promise with vitals data from sensor readings
+ * @returns Promise with the latest actual vitals data from readings_vital table
  */
 export async function fetchVitals(patientId: string): Promise<VitalsData | null> {
   try {
-    // Fetch average vital readings from sensor readings endpoint
-    // Default: last 5 minutes of data
-    const url = buildApiUrl(`/v2/patients/${patientId}/vital/average`, { unit: 'minutes', time: 5 });
+    // Step 1: Get patient's sensors
+    // Endpoint: GET /api/v2/patients/:id/sensors
+    const sensorsUrl = buildApiUrl(`/v2/patients/${patientId}/sensors`);
     
-    const response = await fetch(url, {
+    if (import.meta.env.DEV) {
+      console.log('Fetching patient sensors from:', sensorsUrl);
+    }
+    
+    const sensorsResponse = await fetch(sensorsUrl, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -328,51 +352,160 @@ export async function fetchVitals(patientId: string): Promise<VitalsData | null>
       },
     });
 
-    if (!response.ok) {
-      if (response.status === 404) {
-        // Patient not found or no sensor readings
+    if (!sensorsResponse.ok) {
+      if (sensorsResponse.status === 404) {
+        if (import.meta.env.DEV) {
+          console.log('No sensors found for patient:', patientId);
+        }
         return {
-          heartRate: null,
-          respiratoryRate: null,
-          temperature: null,
-          bloodPressureSystolic: null,
-          bloodPressureDiastolic: null,
-          bloodOxygen: null,
-          weight: null,
-          recordedAt: null,
+          hr: null,
+          rr: null,
+          fft: null,
+          sv: null,
+          hrv: null,
+          bed_status: null,
+          b2b: null,
+          b2b1: null,
+          b2b2: null,
+          sig_strength: null,
+          ts: null,
         };
       }
-      console.error(`Failed to fetch vitals: ${response.status} ${response.statusText}`);
-      throw new Error(`Failed to fetch vitals: ${response.status} ${response.statusText}`);
+      console.error(`Failed to fetch sensors: ${sensorsResponse.status} ${sensorsResponse.statusText}`);
+      throw new Error(`Failed to fetch sensors: ${sensorsResponse.status} ${sensorsResponse.statusText}`);
     }
 
-    const data = await response.json();
+    const sensors = await sensorsResponse.json();
     
-    // Map the average vital readings to our vitals format
-    // The API returns: avg_hr (heart rate), avg_rr (respiratory rate), avg_fft (temperature), avg_sv (stroke volume)
-    // Note: Blood pressure, SPO2, and weight are in separate tables and would need separate endpoints
+    // Handle array or single object response
+    const sensorsArray = Array.isArray(sensors) ? sensors : (sensors.result ? sensors.result : [sensors]);
+    
+    if (sensorsArray.length === 0) {
+      if (import.meta.env.DEV) {
+        console.log('No sensors found for patient:', patientId);
+      }
+      return {
+        hr: null,
+        rr: null,
+        fft: null,
+        sv: null,
+        hrv: null,
+        bed_status: null,
+        b2b: null,
+        b2b1: null,
+        b2b2: null,
+        sig_strength: null,
+        ts: null,
+      };
+    }
+
+    // Step 2: Get the latest vital reading from the first sensor
+    // Endpoint: GET /api/v2/sensor-readings/:sensorId/vital?limit=1
+    const sensorId = sensorsArray[0].id || sensorsArray[0].sensor_id;
+    const readingsUrl = buildApiUrl(`/v2/sensor-readings/${sensorId}/vital`, { limit: 1 });
+    
+    if (import.meta.env.DEV) {
+      console.log('Fetching latest vital reading from:', readingsUrl);
+      console.log('Sensor ID:', sensorId);
+    }
+    
+    const readingsResponse = await fetch(readingsUrl, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+    });
+
+    if (!readingsResponse.ok) {
+      if (readingsResponse.status === 404) {
+        if (import.meta.env.DEV) {
+          console.log('No vital readings found for sensor:', sensorId);
+        }
+        return {
+          hr: null,
+          rr: null,
+          fft: null,
+          sv: null,
+          hrv: null,
+          bed_status: null,
+          b2b: null,
+          b2b1: null,
+          b2b2: null,
+          sig_strength: null,
+          ts: null,
+          sensor_id: sensorId,
+        };
+      }
+      console.error(`Failed to fetch readings: ${readingsResponse.status} ${readingsResponse.statusText}`);
+      throw new Error(`Failed to fetch readings: ${readingsResponse.status} ${readingsResponse.statusText}`);
+    }
+
+    const readings = await readingsResponse.json();
+    
+    // Handle array or single object response
+    const readingsArray = Array.isArray(readings) ? readings : (readings.result ? readings.result : [readings]);
+    
+    if (readingsArray.length === 0) {
+      if (import.meta.env.DEV) {
+        console.log('No vital readings found for sensor:', sensorId);
+      }
+      return {
+        hr: null,
+        rr: null,
+        fft: null,
+        sv: null,
+        hrv: null,
+        bed_status: null,
+        b2b: null,
+        b2b1: null,
+        b2b2: null,
+        sig_strength: null,
+        ts: null,
+        sensor_id: sensorId,
+      };
+    }
+
+    // Get the latest reading (first in the array, as it's ordered by ts DESC)
+    const latestReading = readingsArray[0];
+    
+    // Log the raw backend response for debugging
+    if (import.meta.env.DEV) {
+      console.log('Raw vital reading from backend:', latestReading);
+      console.log('Reading field names:', Object.keys(latestReading));
+    }
+    
+    // Return data using exact database field names (hr, rr, fft, etc.)
+    // These are the actual values from the readings_vital table
     return {
-      heartRate: typeof data.avg_hr === 'number' && !isNaN(data.avg_hr) ? Math.round(data.avg_hr) : null,
-      respiratoryRate: typeof data.avg_rr === 'number' && !isNaN(data.avg_rr) ? Math.round(data.avg_rr) : null,
-      temperature: typeof data.avg_fft === 'number' && !isNaN(data.avg_fft) ? Math.round(data.avg_fft * 10) / 10 : null,
-      bloodPressureSystolic: null, // Would need separate endpoint for BP readings
-      bloodPressureDiastolic: null, // Would need separate endpoint for BP readings
-      bloodOxygen: null, // Would need separate endpoint for SPO2 readings (avg_sv is stroke volume, not O2)
-      weight: null, // Would need separate endpoint for weight readings
-      recordedAt: new Date().toISOString(), // Use current time as readings are recent averages
+      hr: typeof latestReading.hr === 'number' && !isNaN(latestReading.hr) ? latestReading.hr : null,
+      rr: typeof latestReading.rr === 'number' && !isNaN(latestReading.rr) ? latestReading.rr : null,
+      fft: typeof latestReading.fft === 'number' && !isNaN(latestReading.fft) ? latestReading.fft : null,
+      sv: typeof latestReading.sv === 'number' && !isNaN(latestReading.sv) ? latestReading.sv : null,
+      hrv: typeof latestReading.hrv === 'number' && !isNaN(latestReading.hrv) ? latestReading.hrv : null,
+      bed_status: typeof latestReading.bed_status === 'number' && !isNaN(latestReading.bed_status) ? latestReading.bed_status : null,
+      b2b: typeof latestReading.b2b === 'number' && !isNaN(latestReading.b2b) ? latestReading.b2b : null,
+      b2b1: typeof latestReading.b2b1 === 'number' && !isNaN(latestReading.b2b1) ? latestReading.b2b1 : null,
+      b2b2: typeof latestReading.b2b2 === 'number' && !isNaN(latestReading.b2b2) ? latestReading.b2b2 : null,
+      sig_strength: typeof latestReading.sig_strength === 'number' && !isNaN(latestReading.sig_strength) ? latestReading.sig_strength : null,
+      ts: latestReading.ts ? String(latestReading.ts) : null,
+      sensor_id: sensorId,
     };
   } catch (error) {
     console.error('Error fetching vitals:', error);
     // Return empty vitals instead of throwing, so the page can still display
     return {
-      heartRate: null,
-      respiratoryRate: null,
-      temperature: null,
-      bloodPressureSystolic: null,
-      bloodPressureDiastolic: null,
-      bloodOxygen: null,
-      weight: null,
-      recordedAt: null,
+      hr: null,
+      rr: null,
+      fft: null,
+      sv: null,
+      hrv: null,
+      bed_status: null,
+      b2b: null,
+      b2b1: null,
+      b2b2: null,
+      sig_strength: null,
+      ts: null,
     };
   }
 }
