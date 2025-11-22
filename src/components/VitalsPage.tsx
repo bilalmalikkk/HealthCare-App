@@ -143,6 +143,12 @@ export default function VitalsPage({ navigate, patientId, alarmCount }: VitalsPa
       date: formatDate(vitalsData?.ts || null)
     },
     {
+      icon: <Activity className="w-5 h-5" />,
+      label: "FFT (fft)",
+      value: formatVitalValue(vitalsData?.fft || null, ''),
+      date: formatDate(vitalsData?.ts || null)
+    },
+    {
       icon: <Droplets className="w-5 h-5" />,
       label: "Stroke Volume (sv)",
       value: formatVitalValue(vitalsData?.sv || null, 'mL'),
