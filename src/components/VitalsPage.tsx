@@ -122,12 +122,13 @@ export default function VitalsPage({ navigate, patientId, alarmCount }: VitalsPa
 
   // Using exact database field names: hr, rr, fft, etc.
   // These are the actual values from the readings_vital table (not averages)
+  // Temperature comes from readings_temp table
   const vitals = [
     {
       icon: <Thermometer className="w-5 h-5" />,
-      label: "Temperature (fft)",
-      value: formatVitalValue(vitalsData?.fft || null, '°F'),
-      date: formatDate(vitalsData?.ts || null)
+      label: "Temperature (temp)",
+      value: formatVitalValue(vitalsData?.temp || null, '°C'),
+      date: formatDate(vitalsData?.temp_ts || null)
     },
     {
       icon: <Heart className="w-5 h-5" />,

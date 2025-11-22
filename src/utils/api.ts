@@ -112,14 +112,15 @@ export interface UserListItem {
   phone?: string;
 }
 
-// VitalsData interface using exact database field names from readings_vital table
-// Database columns: hr, rr, fft, sv, hrv, bed_status, b2b, b2b1, b2b2, sig_strength, ts
+// VitalsData interface using exact database field names from readings_vital and readings_temp tables
+// Database columns from readings_vital: hr, rr, fft, sv, hrv, bed_status, b2b, b2b1, b2b2, sig_strength, ts
+// Database columns from readings_temp: temp, ts
 // These are the actual values from the latest reading, not averages
 export interface VitalsData {
   // Using exact database field names (from readings_vital table)
   hr: number | null;                  // Heart Rate (BPM) - actual value
   rr: number | null;                  // Respiratory Rate (breaths/min) - actual value
-  fft: number | null;                 // Temperature (°F) - actual value
+  fft: number | null;                 // Temperature from vital readings (°F) - actual value
   sv: number | null;                  // Stroke Volume - actual value
   hrv: number | null;                 // Heart Rate Variability - actual value
   bed_status: number | null;          // Bed Status - actual value
@@ -127,8 +128,11 @@ export interface VitalsData {
   b2b1: number | null;                // B2B1 metric - actual value
   b2b2: number | null;                // B2B2 metric - actual value
   sig_strength: number | null;        // Signal Strength - actual value
-  ts: string | null;                  // Timestamp of the reading
+  ts: string | null;                  // Timestamp of the vital reading
   sensor_id?: string | null;          // Sensor ID that provided this reading
+  // Temperature from readings_temp table
+  temp: number | null;                // Temperature (°F) from readings_temp table - actual value
+  temp_ts: string | null;             // Timestamp of the temperature reading
 }
 
 export interface ApiResponse<T> {
@@ -369,6 +373,8 @@ export async function fetchVitals(patientId: string): Promise<VitalsData | null>
           b2b2: null,
           sig_strength: null,
           ts: null,
+          temp: null,
+          temp_ts: null,
         };
       }
       console.error(`Failed to fetch sensors: ${sensorsResponse.status} ${sensorsResponse.statusText}`);
@@ -396,6 +402,8 @@ export async function fetchVitals(patientId: string): Promise<VitalsData | null>
         b2b2: null,
         sig_strength: null,
         ts: null,
+        temp: null,
+        temp_ts: null,
       };
     }
 
@@ -435,6 +443,8 @@ export async function fetchVitals(patientId: string): Promise<VitalsData | null>
           sig_strength: null,
           ts: null,
           sensor_id: sensorId,
+          temp: null,
+          temp_ts: null,
         };
       }
       console.error(`Failed to fetch readings: ${readingsResponse.status} ${readingsResponse.statusText}`);
@@ -463,6 +473,8 @@ export async function fetchVitals(patientId: string): Promise<VitalsData | null>
         sig_strength: null,
         ts: null,
         sensor_id: sensorId,
+        temp: null,
+        temp_ts: null,
       };
     }
 
@@ -475,8 +487,51 @@ export async function fetchVitals(patientId: string): Promise<VitalsData | null>
       console.log('Reading field names:', Object.keys(latestReading));
     }
     
+    // Step 3: Get the latest temperature reading from readings_temp table
+    // Endpoint: GET /api/v2/sensor-readings/:sensorId/temp?limit=1
+    let tempReading = null;
+    let tempTs = null;
+    
+    try {
+      const tempUrl = buildApiUrl(`/v2/sensor-readings/${sensorId}/temp`, { limit: 1 });
+      
+      if (import.meta.env.DEV) {
+        console.log('Fetching latest temperature reading from:', tempUrl);
+      }
+      
+      const tempResponse = await fetch(tempUrl, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+      });
+
+      if (tempResponse.ok) {
+        const tempData = await tempResponse.json();
+        const tempArray = Array.isArray(tempData) ? tempData : (tempData.result ? tempData.result : [tempData]);
+        
+        if (tempArray.length > 0) {
+          tempReading = tempArray[0];
+          tempTs = tempReading.ts ? String(tempReading.ts) : null;
+          
+          if (import.meta.env.DEV) {
+            console.log('Raw temperature reading from backend:', tempReading);
+          }
+        }
+      } else {
+        if (import.meta.env.DEV) {
+          console.log('No temperature readings found for sensor:', sensorId, `(${tempResponse.status})`);
+        }
+      }
+    } catch (tempError) {
+      // Don't fail the entire request if temperature fetch fails
+      console.error('Error fetching temperature reading:', tempError);
+    }
+    
     // Return data using exact database field names (hr, rr, fft, etc.)
     // These are the actual values from the readings_vital table
+    // Temperature comes from readings_temp table
     return {
       hr: typeof latestReading.hr === 'number' && !isNaN(latestReading.hr) ? latestReading.hr : null,
       rr: typeof latestReading.rr === 'number' && !isNaN(latestReading.rr) ? latestReading.rr : null,
@@ -490,6 +545,8 @@ export async function fetchVitals(patientId: string): Promise<VitalsData | null>
       sig_strength: typeof latestReading.sig_strength === 'number' && !isNaN(latestReading.sig_strength) ? latestReading.sig_strength : null,
       ts: latestReading.ts ? String(latestReading.ts) : null,
       sensor_id: sensorId,
+      temp: tempReading && typeof tempReading.temp === 'number' && !isNaN(tempReading.temp) ? tempReading.temp : null,
+      temp_ts: tempTs,
     };
   } catch (error) {
     console.error('Error fetching vitals:', error);
@@ -506,6 +563,8 @@ export async function fetchVitals(patientId: string): Promise<VitalsData | null>
       b2b2: null,
       sig_strength: null,
       ts: null,
+      temp: null,
+      temp_ts: null,
     };
   }
 }
