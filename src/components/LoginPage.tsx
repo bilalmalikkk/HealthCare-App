@@ -1,29 +1,50 @@
-import { Fingerprint, Heart, Eye, EyeOff } from 'lucide-react';
+import { Fingerprint, Heart, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { useState } from 'react';
+import { login } from '../utils/api';
 
 interface LoginPageProps {
-  onLogin: (username: string) => void;
+  onLogin: (username: string, userData?: any) => void;
 }
 
 export default function LoginPage({ onLogin }: LoginPageProps) {
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Simple validation - in real app, this would connect to backend
-    if (username && password) {
-      onLogin(username);
+    setError(null);
+    
+    if (!email || !password) {
+      setError('Please enter both email and password');
+      return;
+    }
+
+    setIsLoading(true);
+    
+    try {
+      await login({ email, password });
+      // Get user data from token or use email as username
+      const userData = { email, name: email.split('@')[0] };
+      onLogin(userData.name || email, userData);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Login failed. Please check your credentials.';
+      setError(errorMessage);
+      console.error('Login error:', err);
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const handleFingerprintLogin = () => {
-    // Simulate fingerprint authentication with default user
-    onLogin('Max Well');
+    // For now, fingerprint login uses a default demo account
+    // In production, this would use biometric authentication
+    setError('Fingerprint authentication not yet implemented');
   };
 
   return (
@@ -40,17 +61,26 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
 
         {/* Login Form */}
         <form onSubmit={handleLogin} className="w-full max-w-sm space-y-5">
-          {/* Username Field */}
+          {/* Error Message */}
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-2">
+              <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+              <p className="text-red-600 text-sm">{error}</p>
+            </div>
+          )}
+
+          {/* Email Field */}
           <div className="space-y-2">
-            <Label htmlFor="username" className="text-gray-700">Username</Label>
+            <Label htmlFor="email" className="text-gray-700">Email</Label>
             <Input
-              id="username"
-              type="text"
-              placeholder="Enter your username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              id="email"
+              type="email"
+              placeholder="Enter your email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               className="h-12 border-gray-300 focus:border-teal-700 focus:ring-teal-700"
               required
+              disabled={isLoading}
             />
           </div>
 
@@ -66,6 +96,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
                 onChange={(e) => setPassword(e.target.value)}
                 className="h-12 border-gray-300 focus:border-teal-700 focus:ring-teal-700 pr-12"
                 required
+                disabled={isLoading}
               />
               <button
                 type="button"
@@ -92,8 +123,9 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
           <Button 
             type="submit"
             className="w-full bg-teal-700 hover:bg-teal-800 h-12"
+            disabled={isLoading}
           >
-            Sign In
+            {isLoading ? 'Signing in...' : 'Sign In'}
           </Button>
         </form>
 

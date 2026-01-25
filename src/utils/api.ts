@@ -27,7 +27,14 @@ const API_BASE_URL = getApiBaseUrl();
 type QueryParams = Record<string, string | number | boolean | null | undefined>;
 
 function buildApiUrl(path: string, query?: QueryParams): string {
-  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  // Remove leading /v2 from path if base URL already includes /api/v2
+  let normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  
+  // If path starts with /v2 and base already has /api/v2, remove /v2 from path
+  if (normalizedPath.startsWith('/v2/') && API_BASE_URL.includes('/api/v2')) {
+    normalizedPath = normalizedPath.replace(/^\/v2/, '');
+  }
+  
   let queryString = '';
 
   if (query) {
@@ -41,22 +48,24 @@ function buildApiUrl(path: string, query?: QueryParams): string {
   }
 
   if (API_BASE_URL.startsWith('http://') || API_BASE_URL.startsWith('https://')) {
-    // For absolute URLs, ensure /api prefix is included
-    // Base URL might be: http://nordicmedtek3.vps.itpays.cloud:5001
-    // Path might be: /v2/patients
-    // Result should be: http://nordicmedtek3.vps.itpays.cloud:5001/api/v2/patients
+    // If API_BASE_URL already includes /api/v2, just append the path
+    // If API_BASE_URL is just the domain, add /api/v2 before the path
     let base = API_BASE_URL.endsWith('/') ? API_BASE_URL.slice(0, -1) : API_BASE_URL;
     
-    // Add /api if base URL doesn't already end with /api and path doesn't start with /api
-    if (!base.endsWith('/api') && !normalizedPath.startsWith('/api')) {
-      base = `${base}/api`;
+    // Check if base already contains /api/v2
+    if (base.includes('/api/v2')) {
+      // Base already has /api/v2, just append the path (without /v2 prefix)
+      const url = `${base}${normalizedPath}`;
+      return queryString ? `${url}?${queryString}` : url;
+    } else if (base.includes('/api')) {
+      // Base has /api but not /v2, append /v2 and path
+      const url = `${base}/v2${normalizedPath}`;
+      return queryString ? `${url}?${queryString}` : url;
+    } else {
+      // Base is just domain, add /api/v2 before path
+      const url = `${base}/api/v2${normalizedPath}`;
+      return queryString ? `${url}?${queryString}` : url;
     }
-    
-    const url = new URL(normalizedPath.replace(/^\//, ''), `${base}/`);
-    if (queryString) {
-      url.search = queryString;
-    }
-    return url.toString();
   }
 
   // For relative URLs (like /api for Vercel), just concatenate
@@ -68,6 +77,163 @@ function buildApiUrl(path: string, query?: QueryParams): string {
 // Log the API base URL in development for debugging
 if (import.meta.env.DEV) {
   console.log('API Base URL:', API_BASE_URL);
+}
+
+// ============================================================================
+// Authentication Token Management
+// ============================================================================
+
+const TOKEN_STORAGE_KEY = 'eldercare_access_token';
+const REFRESH_TOKEN_STORAGE_KEY = 'eldercare_refresh_token';
+const USER_STORAGE_KEY = 'eldercare_user';
+
+/**
+ * Get stored access token
+ */
+export function getAccessToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem(TOKEN_STORAGE_KEY);
+}
+
+/**
+ * Get stored refresh token
+ */
+export function getRefreshToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem(REFRESH_TOKEN_STORAGE_KEY);
+}
+
+/**
+ * Store authentication tokens
+ */
+export function setAuthTokens(accessToken: string, refreshToken: string, user?: any): void {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(TOKEN_STORAGE_KEY, accessToken);
+  localStorage.setItem(REFRESH_TOKEN_STORAGE_KEY, refreshToken);
+  if (user) {
+    localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
+  }
+}
+
+/**
+ * Clear authentication tokens
+ */
+export function clearAuthTokens(): void {
+  if (typeof window === 'undefined') return;
+  localStorage.removeItem(TOKEN_STORAGE_KEY);
+  localStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
+  localStorage.removeItem(USER_STORAGE_KEY);
+}
+
+/**
+ * Get stored user info
+ */
+export function getStoredUser(): any | null {
+  if (typeof window === 'undefined') return null;
+  const userStr = localStorage.getItem(USER_STORAGE_KEY);
+  if (!userStr) return null;
+  try {
+    return JSON.parse(userStr);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Check if user is authenticated
+ */
+export function isAuthenticated(): boolean {
+  return getAccessToken() !== null;
+}
+
+// ============================================================================
+// Authentication API
+// ============================================================================
+
+export interface LoginCredentials {
+  email: string;
+  password: string;
+}
+
+export interface AuthResponse {
+  accessToken: string;
+  refreshToken: string;
+}
+
+/**
+ * Login and get authentication tokens
+ * POST /api/v2/auth/token
+ */
+export async function login(credentials: LoginCredentials): Promise<AuthResponse> {
+  const url = buildApiUrl('/v2/auth/token');
+  
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify({
+        email: credentials.email,
+        password: credentials.password,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Login failed' }));
+      throw new Error(errorData.error || `Login failed: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    
+    if (!data.accessToken) {
+      throw new Error('Invalid response: accessToken not found');
+    }
+
+    // Store tokens
+    setAuthTokens(data.accessToken, data.refreshToken || '', data.user);
+    
+    return {
+      accessToken: data.accessToken,
+      refreshToken: data.refreshToken || '',
+    };
+  } catch (error) {
+    console.error('Login error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Logout - clear tokens
+ */
+export function logout(): void {
+  clearAuthTokens();
+  // Redirect to login page
+  if (typeof window !== 'undefined') {
+    window.location.href = '/';
+  }
+}
+
+// ============================================================================
+// Helper function to get auth headers
+// ============================================================================
+
+/**
+ * Get headers with authentication token
+ */
+function getAuthHeaders(): Record<string, string> {
+  const token = getAccessToken();
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+  };
+  
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  
+  return headers;
 }
 
 export interface UserData {
@@ -158,11 +324,14 @@ export async function fetchUser(userId: string): Promise<UserData | null> {
   try {
     const response = await fetch(url, {
       method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
+      headers: getAuthHeaders(),
     });
+    
+    // Handle 401 Unauthorized - token expired or invalid
+    if (response.status === 401) {
+      clearAuthTokens();
+      throw new Error('Authentication required. Please login again.');
+    }
 
     if (!response.ok) {
       if (response.status === 404) {
@@ -417,13 +586,16 @@ export async function fetchVitals(patientId: string): Promise<VitalsData | null>
       console.log('Sensor ID:', sensorId);
     }
     
-    const readingsResponse = await fetch(readingsUrl, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-    });
+      const readingsResponse = await fetch(readingsUrl, {
+        method: 'GET',
+        headers: getAuthHeaders(),
+      });
+      
+      // Handle 401 Unauthorized
+      if (readingsResponse.status === 401) {
+        clearAuthTokens();
+        throw new Error('Authentication required. Please login again.');
+      }
 
     if (!readingsResponse.ok) {
       if (readingsResponse.status === 404) {
@@ -501,11 +673,15 @@ export async function fetchVitals(patientId: string): Promise<VitalsData | null>
       
       const tempResponse = await fetch(tempUrl, {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
+        headers: getAuthHeaders(),
       });
+      
+      // Handle 401 Unauthorized
+      if (tempResponse.status === 401) {
+        clearAuthTokens();
+        // Don't throw here, just log - temperature is optional
+        console.warn('Authentication required for temperature reading');
+      }
 
       if (tempResponse.ok) {
         const tempData = await tempResponse.json();
@@ -656,11 +832,14 @@ export async function fetchAllPatients(type: 'all' | 'active' | 'inactive' = 'ac
   try {
     const response = await fetch(url, {
       method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
+      headers: getAuthHeaders(),
     });
+    
+    // Handle 401 Unauthorized - token expired or invalid
+    if (response.status === 401) {
+      clearAuthTokens();
+      throw new Error('Authentication required. Please login again.');
+    }
 
     if (!response.ok) {
       console.error(`Failed to fetch patients: ${response.status} ${response.statusText}`);
@@ -695,11 +874,14 @@ export async function fetchPatientById(patientId: string): Promise<PatientData |
   try {
     const response = await fetch(url, {
       method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
+      headers: getAuthHeaders(),
     });
+    
+    // Handle 401 Unauthorized - token expired or invalid
+    if (response.status === 401) {
+      clearAuthTokens();
+      throw new Error('Authentication required. Please login again.');
+    }
 
     if (!response.ok) {
       if (response.status === 404) {
