@@ -519,11 +519,14 @@ export async function fetchVitals(patientId: string): Promise<VitalsData | null>
     
     const sensorsResponse = await fetch(sensorsUrl, {
       method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
+      headers: getAuthHeaders(),
     });
+
+    // Handle 401 Unauthorized - token expired or invalid
+    if (sensorsResponse.status === 401) {
+      clearAuthTokens();
+      throw new Error('Authentication required. Please login again.');
+    }
 
     if (!sensorsResponse.ok) {
       if (sensorsResponse.status === 404) {
