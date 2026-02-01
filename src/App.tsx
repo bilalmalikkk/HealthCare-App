@@ -238,6 +238,21 @@ export default function App() {
       resolvedAt: null,
       status: 'active',
       notes: "Fire alarm triggered. Evacuate and verify via camera."
+    },
+    {
+      id: 6,
+      patientId: '4dd1ccdf-adff-4e67-9862-6110b4737d74',
+      patientName: "Robert Fox",
+      patientAvatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop",
+      type: "RR",
+      typeIcon: getAlarmTypeIcon("RR"),
+      value: "28 /min",
+      time: "Nov 7, 06:00 PM",
+      handledBy: null,
+      handledAt: null,
+      resolvedAt: null,
+      status: 'active',
+      notes: "Elevated respiratory rate. Monitor patient for signs of distress."
     }
   ]);
 

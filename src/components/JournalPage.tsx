@@ -1,4 +1,4 @@
-import { ChevronLeft, Bell, Calendar, User, Clock, FileText, AlertCircle, Download, Filter, Heart, Droplets, Activity, AlertTriangle, Bed, Flame } from 'lucide-react';
+import { ChevronLeft, Bell, Calendar, User, Clock, FileText, AlertCircle, Download, Filter, Heart, Droplets, Activity, AlertTriangle, Bed, Flame, Wind } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Card, CardContent } from './ui/card';
@@ -72,6 +72,7 @@ export default function JournalPage({ navigate, alarmCount, journalEntries }: Jo
     const t = type.toLowerCase();
     if (t === 'hr' || t === 'heart rate') return 'bg-red-50 text-red-700 border-red-200';
     if (t === 'o2' || t === 'oxygen') return 'bg-blue-50 text-blue-700 border-blue-200';
+    if (t === 'rr' || t === 'respiration rate' || t === 'respiratory rate') return 'bg-cyan-50 text-cyan-700 border-cyan-200';
     if (t === 'bp' || t === 'blood pressure') return 'bg-purple-50 text-purple-700 border-purple-200';
     if (t === 'fall' || t === 'fall detection') return 'bg-orange-50 text-orange-700 border-orange-200';
     if (t === 'falloutofbed' || t === 'fall out of bed' || t === 'outofbed') return 'bg-amber-50 text-amber-700 border-amber-200';
@@ -83,6 +84,7 @@ export default function JournalPage({ navigate, alarmCount, journalEntries }: Jo
     const t = type.toLowerCase();
     if (t === 'hr' || t === 'heart rate') return <Heart className="w-3 h-3" />;
     if (t === 'o2' || t === 'oxygen') return <Droplets className="w-3 h-3" />;
+    if (t === 'rr' || t === 'respiration rate' || t === 'respiratory rate') return <Wind className="w-3 h-3" />;
     if (t === 'bp' || t === 'blood pressure') return <Activity className="w-3 h-3" />;
     if (t === 'fall' || t === 'fall detection') return <AlertTriangle className="w-3 h-3" />;
     if (t === 'falloutofbed' || t === 'fall out of bed' || t === 'outofbed') return <Bed className="w-3 h-3" />;

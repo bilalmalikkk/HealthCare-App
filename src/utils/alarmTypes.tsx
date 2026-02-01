@@ -1,4 +1,4 @@
-import { Heart, Activity, Droplets, AlertTriangle, Camera, Flame, Bed } from 'lucide-react';
+import { Heart, Activity, Droplets, AlertTriangle, Flame, Bed, Wind } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 export interface AlarmTypeConfig {
@@ -21,6 +21,12 @@ export const ALARM_TYPE_CONFIG: Record<string, AlarmTypeConfig> = {
     icon: Droplets,
     showCamera: false,
   },
+  RR: {
+    label: 'Respiration Rate',
+    shortLabel: 'RR',
+    icon: Wind,
+    showCamera: false,
+  },
   BP: {
     label: 'Blood Pressure',
     shortLabel: 'BP',
@@ -34,7 +40,7 @@ export const ALARM_TYPE_CONFIG: Record<string, AlarmTypeConfig> = {
     showCamera: true,
   },
   FallOutOfBed: {
-    label: 'Fall out of bed',
+    label: 'Out of bed',
     shortLabel: 'Out of Bed',
     icon: Bed,
     showCamera: true,
@@ -53,6 +59,11 @@ const TYPE_ALIASES: Record<string, string> = {
   'heart rate': 'HR',
   o2: 'O2',
   oxygen: 'O2',
+  rr: 'RR',
+  respirationrate: 'RR',
+  'respiration rate': 'RR',
+  respiratoryrate: 'RR',
+  'respiratory rate': 'RR',
   bp: 'BP',
   'blood pressure': 'BP',
   fall: 'Fall',
