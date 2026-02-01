@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Heart, Activity, Droplets, AlertTriangle } from 'lucide-react';
+import { getAlarmTypeIcon } from './utils/alarmTypes';
 import LoginPage from './components/LoginPage';
 import LandingPage from './components/LandingPage';
 import ClientsPage from './components/ClientsPage';
@@ -170,7 +170,7 @@ export default function App() {
       patientName: "Jenny Wilson",
       patientAvatar: "https://images.unsplash.com/photo-1594751543129-6701ad444259?w=100&h=100&fit=crop",
       type: "HR",
-      typeIcon: <Heart className="w-4 h-4" />,
+      typeIcon: getAlarmTypeIcon("HR"),
       value: "89 BPM",
       time: "Nov 7, 08:24 PM",
       handledBy: null,
@@ -185,7 +185,7 @@ export default function App() {
       patientName: "Jacob Jones",
       patientAvatar: "https://images.unsplash.com/photo-1566616213894-2d4e1baee5d8?w=100&h=100&fit=crop",
       type: "Fall",
-      typeIcon: <AlertTriangle className="w-4 h-4" />,
+      typeIcon: getAlarmTypeIcon("Fall"),
       value: "Fall Detected",
       time: "Nov 7, 07:45 PM",
       handledBy: null,
@@ -200,7 +200,7 @@ export default function App() {
       patientName: "Darrell Steward",
       patientAvatar: "https://images.unsplash.com/photo-1595429035839-c99c298ffdde?w=100&h=100&fit=crop",
       type: "O2",
-      typeIcon: <Droplets className="w-4 h-4" />,
+      typeIcon: getAlarmTypeIcon("O2"),
       value: "88%",
       time: "Nov 7, 07:12 PM",
       handledBy: null,
@@ -208,6 +208,36 @@ export default function App() {
       resolvedAt: null,
       status: 'active',
       notes: "Check oxygen concentrator settings. Patient may need supplemental oxygen adjustment."
+    },
+    {
+      id: 4,
+      patientId: '496d1ca1-dbe7-425d-9b73-0e230f8f37b5',
+      patientName: "Max Well",
+      patientAvatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop",
+      type: "FallOutOfBed",
+      typeIcon: getAlarmTypeIcon("FallOutOfBed"),
+      value: "Out of bed detected",
+      time: "Nov 7, 06:30 PM",
+      handledBy: null,
+      handledAt: null,
+      resolvedAt: null,
+      status: 'active',
+      notes: "Patient left bed without assistance. Check camera to verify safety."
+    },
+    {
+      id: 5,
+      patientId: '33cfc5cf-fcaa-406a-9acc-7553a659b2f0',
+      patientName: "Jenny Wilson",
+      patientAvatar: "https://images.unsplash.com/photo-1594751543129-6701ad444259?w=100&h=100&fit=crop",
+      type: "Fire",
+      typeIcon: getAlarmTypeIcon("Fire"),
+      value: "Smoke detected in room",
+      time: "Nov 7, 06:15 PM",
+      handledBy: null,
+      handledAt: null,
+      resolvedAt: null,
+      status: 'active',
+      notes: "Fire alarm triggered. Evacuate and verify via camera."
     }
   ]);
 

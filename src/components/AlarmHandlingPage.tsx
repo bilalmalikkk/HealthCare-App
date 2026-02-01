@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ChevronLeft, AlertTriangle, CheckCircle2, RotateCcw, Camera } from 'lucide-react';
+import { getAlarmTypeLabel, getAlarmTypeShortLabel, shouldShowCameraForType } from '../utils/alarmTypes';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Avatar } from './ui/avatar';
@@ -120,7 +121,7 @@ export default function AlarmHandlingPage({
                   </div>
                   <Badge className="bg-red-500 hover:bg-red-500 text-white flex items-center gap-1">
                     {alarm.typeIcon}
-                    {alarm.type}
+                    {getAlarmTypeShortLabel(alarm.type)}
                   </Badge>
                 </div>
 
@@ -128,7 +129,7 @@ export default function AlarmHandlingPage({
                 <div className="grid grid-cols-2 gap-4 mb-4">
                   <div>
                     <p className="text-gray-500 text-xs mb-1">Alarm Type</p>
-                    <p className="text-gray-900">{alarm.type === 'HR' ? 'Heart Rate' : alarm.type === 'BP' ? 'Blood Pressure' : alarm.type === 'O2' ? 'Blood Oxygen' : alarm.type === 'Fall' ? 'Fall Detection' : alarm.type}</p>
+                    <p className="text-gray-900">{getAlarmTypeLabel(alarm.type)}</p>
                   </div>
                   <div>
                     <p className="text-gray-500 text-xs mb-1">Value</p>
@@ -138,7 +139,7 @@ export default function AlarmHandlingPage({
 
                 {/* Action Buttons */}
                 <div className="space-y-2">
-                  {alarm.type === 'Fall' && (
+                  {shouldShowCameraForType(alarm.type) && (
                     <Button 
                       onClick={() => navigate('digitalcare', alarm.patientId)}
                       variant="outline"
@@ -178,7 +179,7 @@ export default function AlarmHandlingPage({
                   </div>
                   <Badge className="bg-amber-500 hover:bg-amber-500 text-white flex items-center gap-1">
                     {alarm.typeIcon}
-                    {alarm.type}
+                    {getAlarmTypeShortLabel(alarm.type)}
                   </Badge>
                 </div>
 
@@ -186,7 +187,7 @@ export default function AlarmHandlingPage({
                 <div className="grid grid-cols-2 gap-4 mb-3">
                   <div>
                     <p className="text-gray-500 text-xs mb-1">Alarm Type</p>
-                    <p className="text-gray-900">{alarm.type === 'HR' ? 'Heart Rate' : alarm.type === 'BP' ? 'Blood Pressure' : alarm.type === 'O2' ? 'Blood Oxygen' : alarm.type === 'Fall' ? 'Fall Detection' : alarm.type}</p>
+                    <p className="text-gray-900">{getAlarmTypeLabel(alarm.type)}</p>
                   </div>
                   <div>
                     <p className="text-gray-500 text-xs mb-1">Value</p>
@@ -216,8 +217,8 @@ export default function AlarmHandlingPage({
                   </div>
                 )}
 
-                {/* Camera Button for Fall Alarms */}
-                {alarm.type === 'Fall' && (
+                {/* Camera Button for Fall / Fire / Out of Bed Alarms */}
+                {shouldShowCameraForType(alarm.type) && (
                   <Button 
                     onClick={() => navigate('digitalcare', alarm.patientId)}
                     variant="outline"
@@ -276,7 +277,7 @@ export default function AlarmHandlingPage({
                 <div className="grid grid-cols-3 gap-3 text-sm mb-3">
                   <div>
                     <p className="text-gray-500 text-xs mb-1">Type</p>
-                    <p className="text-gray-700">{alarm.type}</p>
+                    <p className="text-gray-700">{getAlarmTypeLabel(alarm.type)}</p>
                   </div>
                   <div>
                     <p className="text-gray-500 text-xs mb-1">Value</p>

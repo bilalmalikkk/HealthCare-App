@@ -1,4 +1,4 @@
-import { ChevronLeft, Bell, Calendar, User, Clock, FileText, AlertCircle, Download, Filter, Heart, Droplets, Activity, AlertTriangle } from 'lucide-react';
+import { ChevronLeft, Bell, Calendar, User, Clock, FileText, AlertCircle, Download, Filter, Heart, Droplets, Activity, AlertTriangle, Bed, Flame } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Card, CardContent } from './ui/card';
@@ -69,39 +69,25 @@ export default function JournalPage({ navigate, alarmCount, journalEntries }: Jo
   }, {} as Record<string, JournalEntry[]>);
 
   const getAlarmTypeColor = (type: string) => {
-    switch (type.toLowerCase()) {
-      case 'hr':
-      case 'heart rate':
-        return 'bg-red-50 text-red-700 border-red-200';
-      case 'o2':
-      case 'oxygen':
-        return 'bg-blue-50 text-blue-700 border-blue-200';
-      case 'bp':
-      case 'blood pressure':
-        return 'bg-purple-50 text-purple-700 border-purple-200';
-      case 'fall':
-        return 'bg-orange-50 text-orange-700 border-orange-200';
-      default:
-        return 'bg-gray-50 text-gray-700 border-gray-200';
-    }
+    const t = type.toLowerCase();
+    if (t === 'hr' || t === 'heart rate') return 'bg-red-50 text-red-700 border-red-200';
+    if (t === 'o2' || t === 'oxygen') return 'bg-blue-50 text-blue-700 border-blue-200';
+    if (t === 'bp' || t === 'blood pressure') return 'bg-purple-50 text-purple-700 border-purple-200';
+    if (t === 'fall' || t === 'fall detection') return 'bg-orange-50 text-orange-700 border-orange-200';
+    if (t === 'falloutofbed' || t === 'fall out of bed' || t === 'outofbed') return 'bg-amber-50 text-amber-700 border-amber-200';
+    if (t === 'fire') return 'bg-rose-50 text-rose-700 border-rose-200';
+    return 'bg-gray-50 text-gray-700 border-gray-200';
   };
 
   const getAlarmTypeIcon = (type: string) => {
-    switch (type.toLowerCase()) {
-      case 'hr':
-      case 'heart rate':
-        return <Heart className="w-3 h-3" />;
-      case 'o2':
-      case 'oxygen':
-        return <Droplets className="w-3 h-3" />;
-      case 'bp':
-      case 'blood pressure':
-        return <Activity className="w-3 h-3" />;
-      case 'fall':
-        return <AlertTriangle className="w-3 h-3" />;
-      default:
-        return <AlertCircle className="w-3 h-3" />;
-    }
+    const t = type.toLowerCase();
+    if (t === 'hr' || t === 'heart rate') return <Heart className="w-3 h-3" />;
+    if (t === 'o2' || t === 'oxygen') return <Droplets className="w-3 h-3" />;
+    if (t === 'bp' || t === 'blood pressure') return <Activity className="w-3 h-3" />;
+    if (t === 'fall' || t === 'fall detection') return <AlertTriangle className="w-3 h-3" />;
+    if (t === 'falloutofbed' || t === 'fall out of bed' || t === 'outofbed') return <Bed className="w-3 h-3" />;
+    if (t === 'fire') return <Flame className="w-3 h-3" />;
+    return <AlertCircle className="w-3 h-3" />;
   };
 
   return (

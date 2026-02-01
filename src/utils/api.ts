@@ -461,42 +461,56 @@ export async function fetchUser(userId: string): Promise<UserData | null> {
 /**
  * Extract vitals data from user stats
  * Handles different possible field names (heartRate/hr, respiratoryRate/rr)
+ * Maps to VitalsData shape using database field names
  * @param stats - Stats object from user data
  * @returns VitalsData object
  */
 export function extractVitalsFromStats(stats: Record<string, any> | null | undefined): VitalsData {
   if (!stats) {
     return {
-      heartRate: null,
-      respiratoryRate: null,
-      temperature: null,
-      bloodPressureSystolic: null,
-      bloodPressureDiastolic: null,
-      bloodOxygen: null,
-      weight: null,
-      recordedAt: null,
+      hr: null,
+      rr: null,
+      fft: null,
+      sv: null,
+      hrv: null,
+      bed_status: null,
+      b2b: null,
+      b2b1: null,
+      b2b2: null,
+      sig_strength: null,
+      ts: null,
+      temp: null,
+      temp_ts: null,
     };
   }
 
-  // Handle different possible field names
-  const heartRate = stats.heartRate ?? stats.hr ?? stats.heart_rate ?? null;
-  const respiratoryRate = stats.respiratoryRate ?? stats.rr ?? stats.respiratory_rate ?? null;
-  const temperature = stats.temperature ?? stats.temp ?? null;
-  const bloodPressureSystolic = stats.bloodPressureSystolic ?? stats.bp_systolic ?? stats.blood_pressure_systolic ?? null;
-  const bloodPressureDiastolic = stats.bloodPressureDiastolic ?? stats.bp_diastolic ?? stats.blood_pressure_diastolic ?? null;
-  const bloodOxygen = stats.bloodOxygen ?? stats.spo2 ?? stats.blood_oxygen ?? null;
-  const weight = stats.weight ?? null;
-  const recordedAt = stats.recordedAt ?? stats.recorded_at ?? stats.updatedAt ?? stats.updated_at ?? null;
+  // Handle different possible field names, map to VitalsData (hr, rr, temp, etc.)
+  const hr = stats.heartRate ?? stats.hr ?? stats.heart_rate ?? null;
+  const rr = stats.respiratoryRate ?? stats.rr ?? stats.respiratory_rate ?? null;
+  const temp = stats.temperature ?? stats.temp ?? stats.fft ?? null;
+  const sv = stats.sv ?? null;
+  const hrv = stats.hrv ?? null;
+  const bed_status = stats.bed_status ?? null;
+  const b2b = stats.b2b ?? null;
+  const b2b1 = stats.b2b1 ?? null;
+  const b2b2 = stats.b2b2 ?? null;
+  const sig_strength = stats.sig_strength ?? null;
+  const ts = stats.recordedAt ?? stats.recorded_at ?? stats.updatedAt ?? stats.updated_at ?? stats.ts ?? null;
 
   return {
-    heartRate: typeof heartRate === 'number' ? heartRate : null,
-    respiratoryRate: typeof respiratoryRate === 'number' ? respiratoryRate : null,
-    temperature: typeof temperature === 'number' ? temperature : null,
-    bloodPressureSystolic: typeof bloodPressureSystolic === 'number' ? bloodPressureSystolic : null,
-    bloodPressureDiastolic: typeof bloodPressureDiastolic === 'number' ? bloodPressureDiastolic : null,
-    bloodOxygen: typeof bloodOxygen === 'number' ? bloodOxygen : null,
-    weight: typeof weight === 'number' ? weight : null,
-    recordedAt: recordedAt ? String(recordedAt) : null,
+    hr: typeof hr === 'number' ? hr : null,
+    rr: typeof rr === 'number' ? rr : null,
+    fft: typeof temp === 'number' ? temp : null,
+    sv: typeof sv === 'number' ? sv : null,
+    hrv: typeof hrv === 'number' ? hrv : null,
+    bed_status: typeof bed_status === 'number' ? bed_status : null,
+    b2b: typeof b2b === 'number' ? b2b : null,
+    b2b1: typeof b2b1 === 'number' ? b2b1 : null,
+    b2b2: typeof b2b2 === 'number' ? b2b2 : null,
+    sig_strength: typeof sig_strength === 'number' ? sig_strength : null,
+    ts: ts ? String(ts) : null,
+    temp: typeof temp === 'number' ? temp : null,
+    temp_ts: ts ? String(ts) : null,
   };
 }
 
