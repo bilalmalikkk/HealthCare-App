@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { getAlarmTypeIcon } from './utils/alarmTypes';
 import LoginPage from './components/LoginPage';
 import LandingPage from './components/LandingPage';
@@ -11,10 +11,17 @@ import BackendTestPage from './components/BackendTestPage';
 import AlarmHandlingPage from './components/AlarmHandlingPage';
 import JournalPage, { JournalEntry } from './components/JournalPage';
 import PhoneFrame from './components/PhoneFrame';
-import { isAuthenticated, getStoredUser, clearAuthTokens } from './utils/api';
+import {
+  isAuthenticated,
+  getStoredUser,
+  clearAuthTokens,
+  fetchAlertEvents,
+  resolveAlertEvent,
+  type PatientAlertEvent,
+} from './utils/api';
 
-interface Alarm {
-  id: number;
+export interface Alarm {
+  id: string;
   patientId: string;
   patientName: string;
   patientAvatar: string;
@@ -27,6 +34,45 @@ interface Alarm {
   resolvedAt: string | null;
   status: 'active' | 'in-progress' | 'resolved';
   notes?: string;
+}
+
+function formatTriggeredAt(triggeredAt: string): string {
+  if (!triggeredAt) return 'N/A';
+  try {
+    const d = new Date(triggeredAt);
+    if (isNaN(d.getTime())) return 'N/A';
+    return d.toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    });
+  } catch {
+    return 'N/A';
+  }
+}
+
+function eventToAlarm(e: PatientAlertEvent): Alarm {
+  const valueStr =
+    e.value !== null && e.value !== undefined ? String(e.value) : 'N/A';
+  const avatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(
+    (e.patientName || 'U').split(/\s+/).map((n) => n[0]).join('')
+  )}&background=0d9488&color=fff`;
+  return {
+    id: e.id,
+    patientId: e.patientId,
+    patientName: e.patientName || 'Unknown',
+    patientAvatar: avatar,
+    type: e.type || 'Unknown',
+    typeIcon: getAlarmTypeIcon(e.type),
+    value: valueStr,
+    time: formatTriggeredAt(e.triggeredAt || ''),
+    handledBy: null,
+    handledAt: null,
+    resolvedAt: null,
+    status: 'active',
+  };
 }
 
 export default function App() {
@@ -161,100 +207,51 @@ export default function App() {
       freeTextNotes: "Patient reported feeling tired. Encouraged deep breathing exercises. O2 levels improved to 94% after breathing exercises. Patient advised to rest.",
     }
   ]);
-  
-  // Shared alarm state
-  const [alarms, setAlarms] = useState<Alarm[]>([
-    {
-      id: 1,
-      patientId: '33cfc5cf-fcaa-406a-9acc-7553a659b2f0',
-      patientName: "Jenny Wilson",
-      patientAvatar: "https://images.unsplash.com/photo-1594751543129-6701ad444259?w=100&h=100&fit=crop",
-      type: "HR",
-      typeIcon: getAlarmTypeIcon("HR"),
-      value: "89 BPM",
-      time: "Nov 7, 08:24 PM",
-      handledBy: null,
-      handledAt: null,
-      resolvedAt: null,
-      status: 'active',
-      notes: "This person often call for pain in a fot, but it is not real, He just want someone to visit"
-    },
-    {
-      id: 2,
-      patientId: '496d1ca1-dbe7-425d-9b73-0e230f8f37b5',
-      patientName: "Jacob Jones",
-      patientAvatar: "https://images.unsplash.com/photo-1566616213894-2d4e1baee5d8?w=100&h=100&fit=crop",
-      type: "Fall",
-      typeIcon: getAlarmTypeIcon("Fall"),
-      value: "Fall Detected",
-      time: "Nov 7, 07:45 PM",
-      handledBy: null,
-      handledAt: null,
-      resolvedAt: null,
-      status: 'active',
-      notes: "Fall detection sensor triggered. Check camera immediately and verify patient status."
-    },
-    {
-      id: 3,
-      patientId: '4dd1ccdf-adff-4e67-9862-6110b4737d74',
-      patientName: "Darrell Steward",
-      patientAvatar: "https://images.unsplash.com/photo-1595429035839-c99c298ffdde?w=100&h=100&fit=crop",
-      type: "O2",
-      typeIcon: getAlarmTypeIcon("O2"),
-      value: "88%",
-      time: "Nov 7, 07:12 PM",
-      handledBy: null,
-      handledAt: null,
-      resolvedAt: null,
-      status: 'active',
-      notes: "Check oxygen concentrator settings. Patient may need supplemental oxygen adjustment."
-    },
-    {
-      id: 4,
-      patientId: '496d1ca1-dbe7-425d-9b73-0e230f8f37b5',
-      patientName: "Max Well",
-      patientAvatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop",
-      type: "FallOutOfBed",
-      typeIcon: getAlarmTypeIcon("FallOutOfBed"),
-      value: "Out of bed detected",
-      time: "Nov 7, 06:30 PM",
-      handledBy: null,
-      handledAt: null,
-      resolvedAt: null,
-      status: 'active',
-      notes: "Patient left bed without assistance. Check camera to verify safety."
-    },
-    {
-      id: 5,
-      patientId: '33cfc5cf-fcaa-406a-9acc-7553a659b2f0',
-      patientName: "Jenny Wilson",
-      patientAvatar: "https://images.unsplash.com/photo-1594751543129-6701ad444259?w=100&h=100&fit=crop",
-      type: "Fire",
-      typeIcon: getAlarmTypeIcon("Fire"),
-      value: "Smoke detected in room",
-      time: "Nov 7, 06:15 PM",
-      handledBy: null,
-      handledAt: null,
-      resolvedAt: null,
-      status: 'active',
-      notes: "Fire alarm triggered. Evacuate and verify via camera."
-    },
-    {
-      id: 6,
-      patientId: '4dd1ccdf-adff-4e67-9862-6110b4737d74',
-      patientName: "Robert Fox",
-      patientAvatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop",
-      type: "RR",
-      typeIcon: getAlarmTypeIcon("RR"),
-      value: "28 /min",
-      time: "Nov 7, 06:00 PM",
-      handledBy: null,
-      handledAt: null,
-      resolvedAt: null,
-      status: 'active',
-      notes: "Elevated respiratory rate. Monitor patient for signs of distress."
+
+  // Alarm state: API-backed unresolved + local in-progress overlay + resolved this session
+  const [alarms, setAlarms] = useState<Alarm[]>([]);
+  const [inProgressMap, setInProgressMap] = useState<
+    Map<string, { handledBy: string; handledAt: string }>
+  >(new Map());
+  const [resolvedAlarms, setResolvedAlarms] = useState<Alarm[]>([]);
+  const [alarmsLoading, setAlarmsLoading] = useState(false);
+  const [alarmsError, setAlarmsError] = useState<string | null>(null);
+
+  const loadAlarms = useCallback(async (silent = false) => {
+    if (!isAuthenticated()) return;
+    if (!silent) {
+      setAlarmsLoading(true);
+      setAlarmsError(null);
     }
-  ]);
+    try {
+      const events = await fetchAlertEvents('unresolved', 25);
+      setAlarms(events.map((e) => eventToAlarm(e)));
+    } catch (e) {
+      setAlarmsError(e instanceof Error ? e.message : 'Failed to load alarms');
+      setAlarms([]);
+    } finally {
+      if (!silent) setAlarmsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    loadAlarms(false);
+    const t = setInterval(() => loadAlarms(true), 15000);
+    return () => clearInterval(t);
+  }, [isLoggedIn, loadAlarms]);
+
+  const displayAlarms: Alarm[] = alarms.map((a) => {
+    const prog = inProgressMap.get(a.id);
+    if (prog)
+      return {
+        ...a,
+        status: 'in-progress' as const,
+        handledBy: prog.handledBy,
+        handledAt: prog.handledAt,
+      };
+    return a;
+  });
 
   const handleLogin = (username: string, userData?: any) => {
     setIsLoggedIn(true);
@@ -280,99 +277,98 @@ export default function App() {
   };
 
   // Alarm handlers
-  const handleMarkInProgress = (alarmId: number) => {
+  const handleMarkInProgress = (alarmId: string) => {
     const now = new Date();
-    const formattedDate = now.toLocaleDateString('en-US', { 
-      month: 'short', 
-      day: 'numeric', 
-      year: 'numeric' 
+    const formattedDate = now.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
     });
-    const formattedTime = now.toLocaleTimeString('en-US', { 
-      hour: '2-digit', 
+    const formattedTime = now.toLocaleTimeString('en-US', {
+      hour: '2-digit',
       minute: '2-digit',
-      hour12: true
+      hour12: true,
     });
-    
-    setAlarms(alarms.map(alarm => 
-      alarm.id === alarmId 
-        ? { 
-            ...alarm, 
-            handledBy: currentUser, 
-            handledAt: `${formattedDate}, ${formattedTime}`,
-            status: 'in-progress' 
-          }
-        : alarm
-    ));
+    setInProgressMap((m) =>
+      new Map(m).set(alarmId, {
+        handledBy: currentUser,
+        handledAt: `${formattedDate}, ${formattedTime}`,
+      })
+    );
   };
 
-  const handleReset = (alarmId: number, selectedOptions: string[], freeText: string) => {
+  const handleRelease = (alarmId: string) => {
+    setInProgressMap((m) => {
+      const next = new Map(m);
+      next.delete(alarmId);
+      return next;
+    });
+  };
+
+  const handleReset = async (
+    alarmId: string,
+    selectedOptions: string[],
+    freeText: string
+  ) => {
     const now = new Date();
-    const formattedDate = now.toLocaleDateString('en-US', { 
-      month: 'short', 
-      day: 'numeric', 
-      year: 'numeric' 
+    const formattedDate = now.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
     });
-    const formattedTime = now.toLocaleTimeString('en-US', { 
-      hour: '2-digit', 
+    const formattedTime = now.toLocaleTimeString('en-US', {
+      hour: '2-digit',
       minute: '2-digit',
-      hour12: true
+      hour12: true,
     });
-    
-    // Find the alarm being resolved
-    const alarm = alarms.find(a => a.id === alarmId);
-    
-    if (alarm) {
-      // Create a journal entry
-      const journalEntry: JournalEntry = {
-        id: Date.now(), // Use timestamp as unique ID
-        alarmId: alarm.id,
-        patientId: alarm.patientId,
-        patientName: alarm.patientName,
-        patientAvatar: alarm.patientAvatar,
-        alarmType: alarm.type,
-        alarmValue: alarm.value,
-        detectedTime: alarm.time,
-        handledBy: alarm.handledBy || currentUser,
-        handledAt: alarm.handledAt || `${formattedDate}, ${formattedTime}`,
-        resolvedAt: `${formattedDate}, ${formattedTime}`,
-        selectedOptions: selectedOptions,
-        freeTextNotes: freeText,
-        alarmNotes: alarm.notes
-      };
-      
-      // Add to journal entries
-      setJournalEntries([journalEntry, ...journalEntries]);
-      
-      console.log('Alarm resolved and saved to journal:', journalEntry);
+    const resolvedAt = `${formattedDate}, ${formattedTime}`;
+    const a = displayAlarms.find((x) => x.id === alarmId);
+    if (!a) return;
+    try {
+      await resolveAlertEvent(alarmId);
+    } catch (e) {
+      console.error('Failed to resolve alarm:', e);
+      return;
     }
-    
-    // Mark alarm as resolved
-    setAlarms(alarms.map(alarm => 
-      alarm.id === alarmId 
-        ? { 
-            ...alarm, 
-            resolvedAt: `${formattedDate}, ${formattedTime}`,
-            status: 'resolved' 
-          }
-        : alarm
-    ));
+    const journalEntry: JournalEntry = {
+      id: Date.now(),
+      alarmId,
+      patientId: a.patientId,
+      patientName: a.patientName,
+      patientAvatar: a.patientAvatar,
+      alarmType: a.type,
+      alarmValue: a.value,
+      detectedTime: a.time,
+      handledBy: a.handledBy || currentUser,
+      handledAt: a.handledAt || resolvedAt,
+      resolvedAt,
+      selectedOptions,
+      freeTextNotes: freeText,
+      alarmNotes: a.notes,
+    };
+    setJournalEntries((prev) => [journalEntry, ...prev]);
+    setResolvedAlarms((prev) => [
+      {
+        ...a,
+        status: 'resolved',
+        resolvedAt,
+        handledBy: a.handledBy || currentUser,
+        handledAt: a.handledAt || resolvedAt,
+      } as Alarm,
+      ...prev,
+    ]);
+    setInProgressMap((m) => {
+      const next = new Map(m);
+      next.delete(alarmId);
+      return next;
+    });
+    loadAlarms(true);
   };
 
-  const handleRelease = (alarmId: number) => {
-    setAlarms(alarms.map(alarm => 
-      alarm.id === alarmId 
-        ? { 
-            ...alarm, 
-            handledBy: null,
-            handledAt: null,
-            status: 'active' 
-          }
-        : alarm
-    ));
-  };
-
-  // Calculate active alarm count
-  const activeAlarmCount = alarms.filter(a => a.status === 'active' || a.status === 'in-progress').length;
+  const allAlarmsForPage: Alarm[] = [...displayAlarms, ...resolvedAlarms];
+  const activeAlarmCount = displayAlarms.filter(
+    (a) => a.status === 'active' || a.status === 'in-progress'
+  ).length;
 
   // Show login screen if not logged in
   if (!isLoggedIn) {
@@ -434,10 +430,12 @@ export default function App() {
           />
         )}
         {currentPage === 'alarms' && (
-          <AlarmHandlingPage 
-            navigate={navigate} 
-            currentUser={currentUser} 
-            alarms={alarms}
+          <AlarmHandlingPage
+            navigate={navigate}
+            currentUser={currentUser}
+            alarms={allAlarmsForPage}
+            isLoading={alarmsLoading}
+            error={alarmsError}
             onMarkInProgress={handleMarkInProgress}
             onReset={handleReset}
             onRelease={handleRelease}

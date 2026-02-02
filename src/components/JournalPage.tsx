@@ -10,7 +10,7 @@ import { HomeIcon, ScheduleIcon, ClientsIcon, TasksIcon, JournalIcon } from './B
 
 export interface JournalEntry {
   id: number;
-  alarmId: number;
+  alarmId: string | number;
   patientId: string;
   patientName: string;
   patientAvatar: string;

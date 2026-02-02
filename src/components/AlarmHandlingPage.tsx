@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronLeft, AlertTriangle, CheckCircle2, RotateCcw, Camera } from 'lucide-react';
+import { ChevronLeft, AlertTriangle, CheckCircle2, RotateCcw, Camera, Loader2 } from 'lucide-react';
 import { getAlarmTypeLabel, getAlarmTypeShortLabel, shouldShowCameraForType } from '../utils/alarmTypes';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
@@ -8,7 +8,7 @@ import { ImageWithFallback } from './figma/ImageWithFallback';
 import ResetAlarmDialog from './ResetAlarmDialog';
 
 interface Alarm {
-  id: number;
+  id: string;
   patientId: string;
   patientName: string;
   patientAvatar: string;
@@ -27,18 +27,22 @@ interface AlarmHandlingPageProps {
   navigate: (page: string, patientId?: string) => void;
   currentUser: string;
   alarms: Alarm[];
-  onMarkInProgress: (alarmId: number) => void;
-  onReset: (alarmId: number, selectedOptions: string[], freeText: string) => void;
-  onRelease: (alarmId: number) => void;
+  isLoading?: boolean;
+  error?: string | null;
+  onMarkInProgress: (alarmId: string) => void;
+  onReset: (alarmId: string, selectedOptions: string[], freeText: string) => void;
+  onRelease: (alarmId: string) => void;
 }
 
-export default function AlarmHandlingPage({ 
-  navigate, 
-  currentUser, 
-  alarms, 
-  onMarkInProgress, 
+export default function AlarmHandlingPage({
+  navigate,
+  currentUser,
+  alarms,
+  isLoading = false,
+  error = null,
+  onMarkInProgress,
   onReset,
-  onRelease 
+  onRelease,
 }: AlarmHandlingPageProps) {
 
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
@@ -104,8 +108,25 @@ export default function AlarmHandlingPage({
 
       {/* Alarms List */}
       <div className="px-6 space-y-3">
+        {/* Loading state */}
+        {isLoading && alarms.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-12 gap-3">
+            <Loader2 className="w-10 h-10 animate-spin text-teal-700" />
+            <p className="text-gray-600 text-sm">Loading alarms...</p>
+          </div>
+        )}
+
+        {/* Error state */}
+        {error && alarms.length === 0 && (
+          <div className="bg-red-50 border border-red-200 rounded-2xl p-6 text-center">
+            <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-3" />
+            <p className="text-red-800 font-medium mb-2">Failed to load alarms</p>
+            <p className="text-red-600 text-sm">{error}</p>
+          </div>
+        )}
+
         {/* Active Alarms */}
-        {activeAlarms.length > 0 && (
+        {!isLoading && activeAlarms.length > 0 && (
           <div className="space-y-3">
             <h3 className="text-gray-700 text-sm px-2">Active Alerts</h3>
             {activeAlarms.map((alarm) => (
@@ -163,7 +184,7 @@ export default function AlarmHandlingPage({
         )}
 
         {/* In Progress Alarms */}
-        {inProgressAlarms.length > 0 && (
+        {!isLoading && inProgressAlarms.length > 0 && (
           <div className="space-y-3 mt-6">
             <h3 className="text-gray-700 text-sm px-2">In Progress</h3>
             {inProgressAlarms.map((alarm) => (
@@ -253,7 +274,7 @@ export default function AlarmHandlingPage({
         )}
 
         {/* Resolved Alarms */}
-        {resolvedAlarms.length > 0 && (
+        {!isLoading && resolvedAlarms.length > 0 && (
           <div className="space-y-3 mt-6">
             <h3 className="text-gray-700 text-sm px-2">Resolved Alerts</h3>
             {resolvedAlarms.map((alarm) => (
@@ -311,14 +332,28 @@ export default function AlarmHandlingPage({
           </div>
         )}
 
-        {/* No Active Alarms */}
-        {activeAlarms.length === 0 && inProgressAlarms.length === 0 && resolvedAlarms.length > 0 && (
-          <div className="bg-green-50 border border-green-200 rounded-2xl p-8 text-center mt-8">
-            <CheckCircle2 className="w-16 h-16 text-green-600 mx-auto mb-4" />
-            <h3 className="text-green-900 mb-2">All Clear!</h3>
-            <p className="text-green-700 text-sm">All emergency alarms have been handled</p>
-          </div>
-        )}
+        {/* All Clear - had resolved, no active */}
+        {!isLoading &&
+          activeAlarms.length === 0 &&
+          inProgressAlarms.length === 0 &&
+          resolvedAlarms.length > 0 && (
+            <div className="bg-green-50 border border-green-200 rounded-2xl p-8 text-center mt-8">
+              <CheckCircle2 className="w-16 h-16 text-green-600 mx-auto mb-4" />
+              <h3 className="text-green-900 mb-2">All Clear!</h3>
+              <p className="text-green-700 text-sm">All emergency alarms have been handled</p>
+            </div>
+          )}
+
+        {/* No alarms at all */}
+        {!isLoading &&
+          !error &&
+          alarms.length === 0 && (
+            <div className="bg-gray-50 border border-gray-200 rounded-2xl p-8 text-center mt-8">
+              <CheckCircle2 className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-gray-700 mb-2">No Alarms</h3>
+              <p className="text-gray-500 text-sm">There are no active alarms at the moment</p>
+            </div>
+          )}
       </div>
     </div>
   );

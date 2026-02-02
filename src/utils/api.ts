@@ -926,6 +926,94 @@ export async function fetchPatientById(patientId: string): Promise<PatientData |
   }
 }
 
+// ============================================================================
+// Alert Events API (for Emergency Alarms page)
+// ============================================================================
+
+export type AlertEventStatus = 'all' | 'unresolved' | 'resolved';
+
+export interface PatientAlertEvent {
+  id: string;
+  sid?: number;
+  type: string;
+  level?: string;
+  isResolved?: boolean;
+  patientId: string;
+  patientName?: string;
+  sensorId?: string;
+  value?: number | string | null;
+  triggeredAt?: string;
+  createdAt?: string;
+  resolvedBy?: string;
+  resolvedAt?: string | null;
+}
+
+/**
+ * Fetch alert events (unresolved alarms for Emergency Alarms page)
+ * GET /api/v2/patients/alert-events?status=unresolved&limit=25
+ */
+export async function fetchAlertEvents(
+  status: AlertEventStatus = 'unresolved',
+  limit = 25
+): Promise<PatientAlertEvent[]> {
+  const url = buildApiUrl('/v2/patients/alert-events', {
+    status,
+    limit: String(limit),
+  });
+  try {
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: getAuthHeaders(),
+    });
+    if (response.status === 401) {
+      clearAuthTokens();
+      throw new Error('Authentication required. Please login again.');
+    }
+    if (!response.ok) {
+      if (response.status === 404) return [];
+      throw new Error(`Failed to fetch alert events: ${response.status} ${response.statusText}`);
+    }
+    const data = await response.json();
+    const raw = data?.data ?? data?.alert_events ?? data;
+    const arr = Array.isArray(raw) ? raw : [];
+    return arr.map((e: Record<string, unknown>): PatientAlertEvent => ({
+      id: String(e.id ?? ''),
+      sid: (e.sid as number | undefined),
+      type: (e.type as string) ?? 'unknown',
+      level: (e.level as string) ?? 'high',
+      isResolved: Boolean(e.isResolved ?? e.is_resolved),
+      patientId: String(e.patientId ?? e.patient_id ?? ''),
+      patientName: String(e.patientName ?? e.patient_name ?? e.name ?? 'Unknown'),
+      sensorId: e.sensorId != null ? String(e.sensorId) : undefined,
+      value: (typeof e.value === 'number' || typeof e.value === 'string' ? e.value : 'N/A') as string | number,
+      createdAt: e.createdAt != null ? String(e.createdAt) : (e.created_at != null ? String(e.created_at) : undefined),
+      triggeredAt: String(e.triggeredAt ?? e.triggered_at ?? e.createdAt ?? e.created_at ?? ''),
+    }));
+  } catch (err) {
+    console.error('Error fetching alert events:', err);
+    throw err;
+  }
+}
+
+/**
+ * Mark an alert event as resolved
+ * PUT /api/v2/patients/alert-events/:id/resolve
+ */
+export async function resolveAlertEvent(alertId: string): Promise<void> {
+  const url = buildApiUrl(`/v2/patients/alert-events/${alertId}/resolve`);
+  const response = await fetch(url, {
+    method: 'PUT',
+    headers: getAuthHeaders(),
+  });
+  if (response.status === 401) {
+    clearAuthTokens();
+    throw new Error('Authentication required. Please login again.');
+  }
+  if (!response.ok) {
+    throw new Error(`Failed to resolve alert: ${response.status} ${response.statusText}`);
+  }
+}
+
 // Expose to window for easy console access
 if (typeof window !== 'undefined') {
   (window as any).testUserUuid = testUserUuid;
