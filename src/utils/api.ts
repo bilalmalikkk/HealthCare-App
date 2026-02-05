@@ -982,24 +982,31 @@ export async function fetchAlertEvents(
     const data = await response.json();
     const raw = data?.data ?? data?.alert_events ?? data;
     const arr = Array.isArray(raw) ? raw : [];
-    return arr.map((e: Record<string, unknown>): PatientAlertEvent => ({
-      id: String(e.id ?? ''),
-      sid: (e.sid as number | undefined),
-      type: (e.type as string) ?? 'unknown',
-      level: (e.level as string) ?? 'high',
-      isResolved: Boolean(e.isResolved ?? e.is_resolved),
-      patientId: String(e.patientId ?? e.patient_id ?? ''),
-      patientName: String(e.patientName ?? e.patient_name ?? e.name ?? 'Unknown'),
-      sensorId: e.sensorId != null ? String(e.sensorId) : undefined,
-      value: (typeof e.value === 'number' || typeof e.value === 'string' ? e.value : 'N/A') as string | number,
-      createdAt: e.createdAt != null ? String(e.createdAt) : (e.created_at != null ? String(e.created_at) : undefined),
-      triggeredAt: String(e.triggeredAt ?? e.triggered_at ?? e.createdAt ?? e.created_at ?? ''),
-      isHandling: Boolean(e.isHandling ?? e.is_handling),
-      handlingBy: e.handlingBy != null ? String(e.handlingBy) : (e.handling_by != null ? String(e.handling_by) : undefined),
-      handlingByName: e.handlingByName != null ? String(e.handlingByName) : (e.handling_by_name != null ? String(e.handling_by_name) : undefined),
-      handlingByInitials: e.handlingByInitials != null ? String(e.handlingByInitials) : (e.handling_by_initials != null ? String(e.handling_by_initials) : undefined),
-      handlingAt: e.handlingAt != null ? String(e.handlingAt) : (e.handling_at != null ? String(e.handling_at) : undefined),
-    }));
+    return arr.map((e: Record<string, unknown>): PatientAlertEvent => {
+      // Use only is_handling from DB as source of truth for "in progress" (not leftover handling_by_name/handling_at)
+      const isHandling = Boolean(e.isHandling ?? e.is_handling);
+      const handlingByName = e.handlingByName != null ? String(e.handlingByName) : (e.handling_by_name != null ? String(e.handling_by_name) : undefined);
+      const handlingAt = e.handlingAt != null ? String(e.handlingAt) : (e.handling_at != null ? String(e.handling_at) : undefined);
+      const handlingBy = e.handlingBy != null ? String(e.handlingBy) : (e.handling_by != null ? String(e.handling_by) : undefined);
+      return {
+        id: String(e.id ?? ''),
+        sid: (e.sid as number | undefined),
+        type: (e.type as string) ?? 'unknown',
+        level: (e.level as string) ?? 'high',
+        isResolved: Boolean(e.isResolved ?? e.is_resolved),
+        patientId: String(e.patientId ?? e.patient_id ?? ''),
+        patientName: String(e.patientName ?? e.patient_name ?? e.name ?? 'Unknown'),
+        sensorId: e.sensorId != null ? String(e.sensorId) : undefined,
+        value: (typeof e.value === 'number' || typeof e.value === 'string' ? e.value : 'N/A') as string | number,
+        createdAt: e.createdAt != null ? String(e.createdAt) : (e.created_at != null ? String(e.created_at) : undefined),
+        triggeredAt: String(e.triggeredAt ?? e.triggered_at ?? e.createdAt ?? e.created_at ?? ''),
+        isHandling,
+        handlingBy,
+        handlingByName,
+        handlingByInitials: e.handlingByInitials != null ? String(e.handlingByInitials) : (e.handling_by_initials != null ? String(e.handling_by_initials) : undefined),
+        handlingAt,
+      };
+    });
   } catch (err) {
     console.error('Error fetching alert events:', err);
     throw err;
@@ -1031,6 +1038,32 @@ export async function markAlertInProgress(
   }
   if (!response.ok) {
     const err = new Error(`Failed to mark alert in progress: ${response.status} ${response.statusText}`) as Error & { status?: number };
+    err.status = response.status;
+    throw err;
+  }
+}
+
+/**
+ * Release (unhandle) an alert event - set is_handling = false in DB.
+ * Uses same handle endpoint with body { release: true }.
+ * PUT /api/v2/patients/alert-events/:id/handle
+ */
+export async function releaseAlertEvent(alertId: string): Promise<void> {
+  const url = buildApiUrl(`/v2/patients/alert-events/${alertId}/handle`);
+  const response = await fetch(url, {
+    method: 'PUT',
+    headers: {
+      ...getAuthHeaders(),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ release: true }),
+  });
+  if (response.status === 401) {
+    clearAuthTokens();
+    throw new Error('Authentication required. Please login again.');
+  }
+  if (!response.ok) {
+    const err = new Error(`Failed to release alert: ${response.status} ${response.statusText}`) as Error & { status?: number };
     err.status = response.status;
     throw err;
   }

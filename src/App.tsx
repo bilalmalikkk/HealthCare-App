@@ -16,6 +16,7 @@ import {
   clearAuthTokens,
   fetchAlertEvents,
   markAlertInProgress,
+  releaseAlertEvent,
   resolveAlertEvent,
   type PatientAlertEvent,
 } from './utils/api';
@@ -60,8 +61,9 @@ function eventToAlarm(e: PatientAlertEvent): Alarm {
     (e.patientName || 'U').split(/\s+/).map((n) => n[0]).join('')
   )}&background=0d9488&color=fff`;
   const isHandling = Boolean(e.isHandling);
-  const handledBy = e.handlingByName ?? null;
-  const handledAt = e.handlingAt ? formatTriggeredAt(e.handlingAt) : null;
+  // Only show "Handled by" / "Started" when DB says is_handling is true
+  const handledBy = isHandling ? (e.handlingByName ?? null) : null;
+  const handledAt = isHandling && e.handlingAt ? formatTriggeredAt(e.handlingAt) : null;
   const status: Alarm['status'] = e.isResolved ? 'resolved' : isHandling ? 'in-progress' : 'active';
   const resolvedAt = e.resolvedAt ? formatTriggeredAt(e.resolvedAt) : null;
   return {
@@ -236,7 +238,29 @@ export default function App() {
     }
     try {
       const events = await fetchAlertEvents('unresolved', 1000);
-      setAlarms(events.map((e) => eventToAlarm(e)));
+      const newAlarms = events.map((e) => eventToAlarm(e));
+      setAlarms(newAlarms);
+      // When backend says an alarm is not being handled (unhandled in DB), clear local state so UI shows active again
+      const idsActiveFromBackend = new Set(
+        newAlarms.filter((a) => a.status === 'active').map((a) => a.id)
+      );
+      if (idsActiveFromBackend.size > 0) {
+        setMarkedInProgressIds((prev) => {
+          const next = new Set(prev);
+          idsActiveFromBackend.forEach((id) => next.delete(id));
+          return next;
+        });
+        setInProgressMap((prev) => {
+          const next = new Map(prev);
+          idsActiveFromBackend.forEach((id) => next.delete(id));
+          return next;
+        });
+        setReleasedIds((prev) => {
+          const next = new Set(prev);
+          idsActiveFromBackend.forEach((id) => next.delete(id));
+          return next;
+        });
+      }
     } catch (e) {
       setAlarmsError(e instanceof Error ? e.message : 'Failed to load alarms');
       setAlarms([]);
@@ -365,7 +389,19 @@ export default function App() {
     }
   };
 
-  const handleRelease = (alarmId: string) => {
+  const handleRelease = async (alarmId: string) => {
+    try {
+      await releaseAlertEvent(alarmId);
+      setMarkAlarmError(null);
+    } catch (err: unknown) {
+      const status = (err as { status?: number })?.status;
+      if (status === 404) {
+        setMarkAlarmWarning('Release not saved to database: server may not support release via handle endpoint yet. Deploy backend that accepts body { release: true } on PUT .../handle.');
+      } else {
+        setMarkAlarmError(err instanceof Error ? err.message : 'Failed to release alarm.');
+        return;
+      }
+    }
     setInProgressMap((m) => {
       const next = new Map(m);
       next.delete(alarmId);
@@ -376,8 +412,8 @@ export default function App() {
       next.delete(alarmId);
       return next;
     });
-    // Show this alarm as active again so someone else can handle it
     setReleasedIds((s) => new Set(s).add(alarmId));
+    await loadAlarms(true);
   };
 
   const handleReset = async (
