@@ -1042,16 +1042,28 @@ export async function markAlertInProgress(
  */
 export async function resolveAlertEvent(alertId: string): Promise<void> {
   const url = buildApiUrl(`/v2/patients/alert-events/${alertId}/resolve`);
+  const headers = getAuthHeaders();
   const response = await fetch(url, {
     method: 'PUT',
-    headers: getAuthHeaders(),
+    headers: {
+      ...headers,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({}),
   });
   if (response.status === 401) {
     clearAuthTokens();
     throw new Error('Authentication required. Please login again.');
   }
   if (!response.ok) {
-    throw new Error(`Failed to resolve alert: ${response.status} ${response.statusText}`);
+    let message = `Failed to resolve alert: ${response.status} ${response.statusText}`;
+    try {
+      const body = await response.json();
+      if (body?.error || body?.message) message += ` — ${body.error || body.message}`;
+    } catch {
+      // ignore
+    }
+    throw new Error(message);
   }
 }
 

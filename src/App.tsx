@@ -223,6 +223,8 @@ export default function App() {
   const [alarmsError, setAlarmsError] = useState<string | null>(null);
   const [markingInProgressId, setMarkingInProgressId] = useState<string | null>(null);
   const [markedInProgressIds, setMarkedInProgressIds] = useState<Set<string>>(new Set());
+  /** IDs released by current user – show as active so someone else can handle */
+  const [releasedIds, setReleasedIds] = useState<Set<string>>(new Set());
   const [markAlarmError, setMarkAlarmError] = useState<string | null>(null);
   const [markAlarmWarning, setMarkAlarmWarning] = useState<string | null>(null);
 
@@ -255,6 +257,7 @@ export default function App() {
       setMarkAlarmError(null);
       setMarkAlarmWarning(null);
       setMarkedInProgressIds(new Set());
+      setReleasedIds(new Set());
     }
   }, [currentPage]);
 
@@ -265,7 +268,17 @@ export default function App() {
   }, [markAlarmWarning]);
 
   const displayAlarms: Alarm[] = alarms.map((a) => {
-    if (markedInProgressIds.has(a.id)) return { ...a, status: 'active' as const };
+    // Released: show as active so someone else can take it
+    if (releasedIds.has(a.id))
+      return { ...a, status: 'active' as const, handledBy: null, handledAt: null };
+    // Marked in progress (by us or from API): show in-progress with Release/Reset
+    if (markedInProgressIds.has(a.id))
+      return {
+        ...a,
+        status: 'in-progress' as const,
+        handledBy: a.handledBy || currentUser,
+        handledAt: a.handledAt ?? null,
+      };
     const prog = inProgressMap.get(a.id);
     if (prog)
       return {
@@ -363,6 +376,8 @@ export default function App() {
       next.delete(alarmId);
       return next;
     });
+    // Show this alarm as active again so someone else can handle it
+    setReleasedIds((s) => new Set(s).add(alarmId));
   };
 
   const handleReset = async (
@@ -384,10 +399,13 @@ export default function App() {
     const resolvedAt = `${formattedDate}, ${formattedTime}`;
     const a = displayAlarms.find((x) => x.id === alarmId);
     if (!a) return;
+    setMarkAlarmError(null);
     try {
+      // Resolve in the cloud (same backend) so alarm is removed from active list everywhere
       await resolveAlertEvent(alarmId);
     } catch (e) {
       console.error('Failed to resolve alarm:', e);
+      setMarkAlarmError(e instanceof Error ? e.message : 'Failed to resolve alarm. Please try again.');
       return;
     }
     const journalEntry: JournalEntry = {
@@ -407,25 +425,42 @@ export default function App() {
       alarmNotes: a.notes,
     };
     setJournalEntries((prev) => [journalEntry, ...prev]);
-    setResolvedAlarms((prev) => [
-      {
-        ...a,
-        status: 'resolved',
-        resolvedAt,
-        handledBy: a.handledBy || currentUser,
-        handledAt: a.handledAt || resolvedAt,
-      } as Alarm,
-      ...prev,
-    ]);
+    setResolvedAlarms((prev) => {
+      if (prev.some((r) => r.id === alarmId)) return prev;
+      return [
+        {
+          ...a,
+          status: 'resolved',
+          resolvedAt,
+          handledBy: a.handledBy || currentUser,
+          handledAt: a.handledAt || resolvedAt,
+        } as Alarm,
+        ...prev,
+      ];
+    });
     setInProgressMap((m) => {
       const next = new Map(m);
+      next.delete(alarmId);
+      return next;
+    });
+    setMarkedInProgressIds((s) => {
+      const next = new Set(s);
+      next.delete(alarmId);
+      return next;
+    });
+    setReleasedIds((s) => {
+      const next = new Set(s);
       next.delete(alarmId);
       return next;
     });
     loadAlarms(true);
   };
 
-  const allAlarmsForPage: Alarm[] = [...displayAlarms, ...resolvedAlarms];
+  // Avoid duplicates: only show resolved from local list; active/in-progress from displayAlarms (API)
+  const allAlarmsForPage: Alarm[] = [
+    ...displayAlarms.filter((a) => a.status !== 'resolved'),
+    ...resolvedAlarms,
+  ];
   const activeAlarmCount = displayAlarms.filter(
     (a) => a.status === 'active' || a.status === 'in-progress'
   ).length;

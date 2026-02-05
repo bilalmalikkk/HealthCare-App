@@ -215,22 +215,43 @@ export default function AlarmHandlingPage({
                     </Button>
                   )}
                   {isMarked ? (
-                    <div className="flex gap-2">
-                      <Button 
-                        onClick={() => onRelease(alarm.id)}
-                        variant="outline"
-                        className="flex-1 border-amber-300 text-amber-700 hover:bg-amber-50 hover:text-amber-800 h-10"
+                    <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        aria-label="Release alarm so someone else can handle it"
+                        onPointerDown={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          onRelease(alarm.id);
+                        }}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          onRelease(alarm.id);
+                        }}
+                        className="relative z-10 flex-1 h-10 min-h-[44px] rounded-md inline-flex items-center justify-center gap-2 border-2 border-amber-300 text-amber-700 bg-transparent hover:bg-amber-50 active:bg-amber-100 text-sm font-medium touch-manipulation select-none"
                       >
-                        <RotateCcw className="w-4 h-4 mr-2" />
-                        Release
-                      </Button>
-                      <Button 
-                        onClick={() => handleResetClick(alarm)}
-                        className="flex-1 bg-green-600 hover:bg-green-700 h-10"
+                        <RotateCcw className="w-4 h-4 pointer-events-none" />
+                        <span className="pointer-events-none">Release</span>
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="Reset and resolve alarm"
+                        onPointerDown={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          onReset(alarm.id, [], '');
+                        }}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          onReset(alarm.id, [], '');
+                        }}
+                        className="relative z-10 flex-1 h-10 min-h-[44px] rounded-md inline-flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 active:bg-green-800 text-white text-sm font-medium touch-manipulation select-none"
                       >
-                        <CheckCircle2 className="w-4 h-4 mr-2" />
-                        Reset
-                      </Button>
+                        <CheckCircle2 className="w-4 h-4 pointer-events-none" />
+                        <span className="pointer-events-none">Reset</span>
+                      </button>
                     </div>
                   ) : (
                   <button
