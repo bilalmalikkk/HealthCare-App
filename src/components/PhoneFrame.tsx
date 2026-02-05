@@ -39,8 +39,8 @@ export default function PhoneFrame({ children }: PhoneFrameProps) {
             </div>
           </div>
 
-          {/* App Content */}
-          <div className="w-full h-full overflow-auto phone-content-area">
+          {/* App Content - pb-16 so content isn't hidden under bottom nav bar */}
+          <div className="w-full h-full overflow-auto phone-content-area pb-16">
             {children}
           </div>
 

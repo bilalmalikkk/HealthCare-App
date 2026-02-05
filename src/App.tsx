@@ -7,7 +7,6 @@ import PatientDetailsPage from './components/PatientDetailsPage';
 import VitalsPage from './components/VitalsPage';
 import DigitalCarePage from './components/DigitalCarePage';
 import MedicationsPage from './components/MedicationsPage';
-import BackendTestPage from './components/BackendTestPage';
 import AlarmHandlingPage from './components/AlarmHandlingPage';
 import JournalPage, { JournalEntry } from './components/JournalPage';
 import PhoneFrame from './components/PhoneFrame';
@@ -16,6 +15,7 @@ import {
   getStoredUser,
   clearAuthTokens,
   fetchAlertEvents,
+  markAlertInProgress,
   resolveAlertEvent,
   type PatientAlertEvent,
 } from './utils/api';
@@ -59,6 +59,11 @@ function eventToAlarm(e: PatientAlertEvent): Alarm {
   const avatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(
     (e.patientName || 'U').split(/\s+/).map((n) => n[0]).join('')
   )}&background=0d9488&color=fff`;
+  const isHandling = Boolean(e.isHandling);
+  const handledBy = e.handlingByName ?? null;
+  const handledAt = e.handlingAt ? formatTriggeredAt(e.handlingAt) : null;
+  const status: Alarm['status'] = e.isResolved ? 'resolved' : isHandling ? 'in-progress' : 'active';
+  const resolvedAt = e.resolvedAt ? formatTriggeredAt(e.resolvedAt) : null;
   return {
     id: e.id,
     patientId: e.patientId,
@@ -68,10 +73,10 @@ function eventToAlarm(e: PatientAlertEvent): Alarm {
     typeIcon: getAlarmTypeIcon(e.type),
     value: valueStr,
     time: formatTriggeredAt(e.triggeredAt || ''),
-    handledBy: null,
-    handledAt: null,
-    resolvedAt: null,
-    status: 'active',
+    handledBy,
+    handledAt,
+    resolvedAt,
+    status,
   };
 }
 
@@ -216,6 +221,10 @@ export default function App() {
   const [resolvedAlarms, setResolvedAlarms] = useState<Alarm[]>([]);
   const [alarmsLoading, setAlarmsLoading] = useState(false);
   const [alarmsError, setAlarmsError] = useState<string | null>(null);
+  const [markingInProgressId, setMarkingInProgressId] = useState<string | null>(null);
+  const [markedInProgressIds, setMarkedInProgressIds] = useState<Set<string>>(new Set());
+  const [markAlarmError, setMarkAlarmError] = useState<string | null>(null);
+  const [markAlarmWarning, setMarkAlarmWarning] = useState<string | null>(null);
 
   const loadAlarms = useCallback(async (silent = false) => {
     if (!isAuthenticated()) return;
@@ -224,7 +233,7 @@ export default function App() {
       setAlarmsError(null);
     }
     try {
-      const events = await fetchAlertEvents('unresolved', 25);
+      const events = await fetchAlertEvents('unresolved', 1000);
       setAlarms(events.map((e) => eventToAlarm(e)));
     } catch (e) {
       setAlarmsError(e instanceof Error ? e.message : 'Failed to load alarms');
@@ -241,7 +250,22 @@ export default function App() {
     return () => clearInterval(t);
   }, [isLoggedIn, loadAlarms]);
 
+  useEffect(() => {
+    if (currentPage !== 'alarms') {
+      setMarkAlarmError(null);
+      setMarkAlarmWarning(null);
+      setMarkedInProgressIds(new Set());
+    }
+  }, [currentPage]);
+
+  useEffect(() => {
+    if (!markAlarmWarning) return;
+    const t = setTimeout(() => setMarkAlarmWarning(null), 6000);
+    return () => clearTimeout(t);
+  }, [markAlarmWarning]);
+
   const displayAlarms: Alarm[] = alarms.map((a) => {
+    if (markedInProgressIds.has(a.id)) return { ...a, status: 'active' as const };
     const prog = inProgressMap.get(a.id);
     if (prog)
       return {
@@ -276,30 +300,66 @@ export default function App() {
     }
   };
 
-  // Alarm handlers
-  const handleMarkInProgress = (alarmId: string) => {
-    const now = new Date();
-    const formattedDate = now.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
-    const formattedTime = now.toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true,
-    });
-    setInProgressMap((m) =>
-      new Map(m).set(alarmId, {
-        handledBy: currentUser,
-        handledAt: `${formattedDate}, ${formattedTime}`,
-      })
-    );
+  const getInitials = (name: string) => {
+    const parts = name.trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return 'U';
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  };
+
+  const handleMarkInProgress = async (alarmId: string) => {
+    if (!alarmId?.trim()) {
+      setMarkAlarmError('Invalid alarm. Please try again.');
+      return;
+    }
+    if (markingInProgressId) return;
+    setMarkAlarmError(null);
+    setMarkingInProgressId(alarmId);
+
+    const handlingByName = currentUser || 'User';
+    const handlingByInitials = getInitials(handlingByName);
+    const storedUser = getStoredUser();
+    const handlingBy = storedUser?.id ?? storedUser?.email ?? undefined;
+
+    try {
+      await markAlertInProgress(alarmId, {
+        handling_by: handlingBy,
+        handling_by_name: handlingByName,
+        handling_by_initials: handlingByInitials,
+      });
+      setMarkAlarmWarning(null);
+      setMarkedInProgressIds((s) => new Set(s).add(alarmId));
+      await loadAlarms(true);
+    } catch (err: unknown) {
+      const status = (err as { status?: number })?.status;
+      const message = err instanceof Error ? err.message : 'Failed to mark in progress';
+      if (status === 404) {
+        setMarkAlarmWarning(
+          'Not saved to database: server does not have the handle endpoint yet. Alarm is marked in progress on this device only. Deploy the backend with PUT /api/v2/patients/alert-events/:id/handle to save to DB.'
+        );
+        setMarkedInProgressIds((s) => new Set(s).add(alarmId));
+        console.warn('Handle endpoint not implemented (404); alarm marked in progress locally.');
+        return;
+      }
+      if (status === 401) {
+        setMarkAlarmError('Please log in again.');
+      } else {
+        setMarkAlarmError(message);
+      }
+      console.error('Failed to mark alarm in progress:', err);
+    } finally {
+      setMarkingInProgressId(null);
+    }
   };
 
   const handleRelease = (alarmId: string) => {
     setInProgressMap((m) => {
       const next = new Map(m);
+      next.delete(alarmId);
+      return next;
+    });
+    setMarkedInProgressIds((s) => {
+      const next = new Set(s);
       next.delete(alarmId);
       return next;
     });
@@ -423,12 +483,6 @@ export default function App() {
             alarmCount={activeAlarmCount}
           />
         )}
-        {currentPage === 'backend-test' && (
-          <BackendTestPage 
-            navigate={navigate}
-            alarmCount={activeAlarmCount}
-          />
-        )}
         {currentPage === 'alarms' && (
           <AlarmHandlingPage
             navigate={navigate}
@@ -436,6 +490,10 @@ export default function App() {
             alarms={allAlarmsForPage}
             isLoading={alarmsLoading}
             error={alarmsError}
+            markingInProgressId={markingInProgressId}
+            markedInProgressIds={markedInProgressIds}
+            markAlarmError={markAlarmError}
+            markAlarmWarning={markAlarmWarning}
             onMarkInProgress={handleMarkInProgress}
             onReset={handleReset}
             onRelease={handleRelease}

@@ -946,15 +946,21 @@ export interface PatientAlertEvent {
   createdAt?: string;
   resolvedBy?: string;
   resolvedAt?: string | null;
+  /** Handling (Mark as In Progress) - from deployed backend */
+  isHandling?: boolean;
+  handlingBy?: string;
+  handlingByName?: string;
+  handlingByInitials?: string;
+  handlingAt?: string | null;
 }
 
 /**
  * Fetch alert events (unresolved alarms for Emergency Alarms page)
- * GET /api/v2/patients/alert-events?status=unresolved&limit=25
+ * GET /api/v2/patients/alert-events?status=unresolved&limit=1000
  */
 export async function fetchAlertEvents(
   status: AlertEventStatus = 'unresolved',
-  limit = 25
+  limit = 1000
 ): Promise<PatientAlertEvent[]> {
   const url = buildApiUrl('/v2/patients/alert-events', {
     status,
@@ -988,6 +994,11 @@ export async function fetchAlertEvents(
       value: (typeof e.value === 'number' || typeof e.value === 'string' ? e.value : 'N/A') as string | number,
       createdAt: e.createdAt != null ? String(e.createdAt) : (e.created_at != null ? String(e.created_at) : undefined),
       triggeredAt: String(e.triggeredAt ?? e.triggered_at ?? e.createdAt ?? e.created_at ?? ''),
+      isHandling: Boolean(e.isHandling ?? e.is_handling),
+      handlingBy: e.handlingBy != null ? String(e.handlingBy) : (e.handling_by != null ? String(e.handling_by) : undefined),
+      handlingByName: e.handlingByName != null ? String(e.handlingByName) : (e.handling_by_name != null ? String(e.handling_by_name) : undefined),
+      handlingByInitials: e.handlingByInitials != null ? String(e.handlingByInitials) : (e.handling_by_initials != null ? String(e.handling_by_initials) : undefined),
+      handlingAt: e.handlingAt != null ? String(e.handlingAt) : (e.handling_at != null ? String(e.handling_at) : undefined),
     }));
   } catch (err) {
     console.error('Error fetching alert events:', err);
@@ -996,7 +1007,37 @@ export async function fetchAlertEvents(
 }
 
 /**
- * Mark an alert event as resolved
+ * Mark an alert event as "in progress" (handling) - calls deployed backend
+ * PUT /api/v2/patients/alert-events/:id/handle
+ * Body: { handling_by?, handling_by_name, handling_by_initials }
+ */
+export async function markAlertInProgress(
+  alertId: string,
+  payload: { handling_by?: string; handling_by_name: string; handling_by_initials: string }
+): Promise<void> {
+  const url = buildApiUrl(`/v2/patients/alert-events/${alertId}/handle`);
+  const response = await fetch(url, {
+    method: 'PUT',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({
+      handling_by: payload.handling_by,
+      handling_by_name: payload.handling_by_name,
+      handling_by_initials: payload.handling_by_initials,
+    }),
+  });
+  if (response.status === 401) {
+    clearAuthTokens();
+    throw new Error('Authentication required. Please login again.');
+  }
+  if (!response.ok) {
+    const err = new Error(`Failed to mark alert in progress: ${response.status} ${response.statusText}`) as Error & { status?: number };
+    err.status = response.status;
+    throw err;
+  }
+}
+
+/**
+ * Mark an alert event as resolved (reset)
  * PUT /api/v2/patients/alert-events/:id/resolve
  */
 export async function resolveAlertEvent(alertId: string): Promise<void> {
