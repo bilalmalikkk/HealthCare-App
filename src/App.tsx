@@ -396,7 +396,7 @@ export default function App() {
     } catch (err: unknown) {
       const status = (err as { status?: number })?.status;
       if (status === 404) {
-        setMarkAlarmWarning('Release not saved to database: server may not support release via handle endpoint yet. Deploy backend that accepts body { release: true } on PUT .../handle.');
+        setMarkAlarmWarning('Release not saved to database: server may not have PUT .../alert-events/:id/unhandle endpoint yet.');
       } else {
         setMarkAlarmError(err instanceof Error ? err.message : 'Failed to release alarm.');
         return;

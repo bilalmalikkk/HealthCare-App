@@ -1045,18 +1045,17 @@ export async function markAlertInProgress(
 
 /**
  * Release (unhandle) an alert event - set is_handling = false in DB.
- * Uses same handle endpoint with body { release: true }.
- * PUT /api/v2/patients/alert-events/:id/handle
+ * PUT /api/v2/patients/alert-events/:id/unhandle
  */
 export async function releaseAlertEvent(alertId: string): Promise<void> {
-  const url = buildApiUrl(`/v2/patients/alert-events/${alertId}/handle`);
+  const url = buildApiUrl(`/v2/patients/alert-events/${alertId}/unhandle`);
   const response = await fetch(url, {
     method: 'PUT',
     headers: {
       ...getAuthHeaders(),
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ release: true }),
+    body: JSON.stringify({}),
   });
   if (response.status === 401) {
     clearAuthTokens();
