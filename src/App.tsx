@@ -237,7 +237,7 @@ export default function App() {
       setAlarmsError(null);
     }
     try {
-      const events = await fetchAlertEvents('unresolved', 1000);
+      const events = await fetchAlertEvents('unresolved', 50);
       const newAlarms = events.map((e) => eventToAlarm(e));
       setAlarms(newAlarms);
       // When backend says an alarm is not being handled (unhandled in DB), clear local state so UI shows active again

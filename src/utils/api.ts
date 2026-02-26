@@ -161,12 +161,11 @@ export interface AuthResponse {
 }
 
 /**
- * Login and get authentication tokens
- * POST /api/v2/auth/token
+ * Call POST /api/v2/auth/token to get accessToken and refreshToken.
+ * The accessToken must be sent in the Authorization header (Bearer) for all other API requests.
  */
 export async function login(credentials: LoginCredentials): Promise<AuthResponse> {
   const url = buildApiUrl('/v2/auth/token');
-  
   try {
     const response = await fetch(url, {
       method: 'POST',
@@ -186,18 +185,15 @@ export async function login(credentials: LoginCredentials): Promise<AuthResponse
     }
 
     const data = await response.json();
-    
-    if (!data.accessToken) {
+    const accessToken = data.accessToken ?? data.access_token ?? data.token;
+    const refreshToken = data.refreshToken ?? data.refresh_token ?? '';
+
+    if (!accessToken) {
       throw new Error('Invalid response: accessToken not found');
     }
 
-    // Store tokens
-    setAuthTokens(data.accessToken, data.refreshToken || '', data.user);
-    
-    return {
-      accessToken: data.accessToken,
-      refreshToken: data.refreshToken || '',
-    };
+    setAuthTokens(accessToken, refreshToken, data.user);
+    return { accessToken, refreshToken };
   } catch (error) {
     console.error('Login error:', error);
     throw error;
@@ -220,7 +216,8 @@ export function logout(): void {
 // ============================================================================
 
 /**
- * Get headers with authentication token
+ * Headers for authenticated requests: include Authorization: Bearer <accessToken>.
+ * Use the accessToken obtained from POST /api/v2/auth/token.
  */
 function getAuthHeaders(): Record<string, string> {
   const token = getAccessToken();
@@ -228,11 +225,9 @@ function getAuthHeaders(): Record<string, string> {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
   };
-  
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
-  
   return headers;
 }
 
@@ -956,15 +951,16 @@ export interface PatientAlertEvent {
 
 /**
  * Fetch alert events (unresolved alarms for Emergency Alarms page)
- * GET /api/v2/patients/alert-events?status=unresolved&limit=1000
+ * GET /api/v2/patients/alert-events?status=unresolved&limit=50
+ * Backend max limit is 50.
  */
 export async function fetchAlertEvents(
   status: AlertEventStatus = 'unresolved',
-  limit = 1000
+  limit = 50
 ): Promise<PatientAlertEvent[]> {
   const url = buildApiUrl('/v2/patients/alert-events', {
     status,
-    limit: String(limit),
+    limit: String(Math.min(limit, 50)),
   });
   try {
     const response = await fetch(url, {
